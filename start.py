@@ -82,7 +82,6 @@ def init_agent(name):
 def open_sess(sess_id = ''):
 	h = {u'agentToken':sess_id}
 	r = get_api('/environment/agent/say?message=opening python session', headers=h)
-	dump_json(r.json())
 
 	if (200 == r.status_code):
 	# if connection successful
@@ -93,61 +92,15 @@ def open_sess(sess_id = ''):
 		while(usi != 'exit'):
 			usi = raw_input('disai> ') # unsafe input !!!!!!!!
 			usi_split = usi.split()
-			#if (usi_split[0] == 'map'):				do_map(usi_split, h=h)
-			#elif (usi_split[0] == 'navigation'):	do_navigation(usi_split, h=h)
-			#elif (usi_split[0] == 'papersoccer'):	do_papersoccer(usi_split, h=h)
-			if (usi_split[0] in commands.keys()): do_section(usi_split[0], usi_split, h=h)
+			if (usi_split[0] in commands.keys()):
+				 do_section(usi_split[0], usi_split, h=h)
 			else: 
-				if (usi != 'exit'): print 'command unrecognized, please try again'
+				if (usi != 'exit'):
+					 print 'command unrecognized, please try again'
 	else:
 	# if connecting with $sess_id fails, ignore and fail
-		print 'failed to connect, status code ' + str(r.status_code) + ' returned:'
-		print r.text
+		print 'failed to connect, status code ' + str(r.status_code)
 
-def do_map(params, h={}):
-	#bool determines whether or not generated url is sound
-	get_flag = True
-	if (params[0] == 'map'): params = params[1:]
-	if (len(params) == 0):
-		params = raw_input(
-			'enter a map command (' + ', '.join(commands['map'].keys()) + '): '
-			).split()
-	endpoint = params[0]
-	endpoint_url = '/map/' + endpoint + '?'
-	params = {p.split('=')[0]:p.split('=')[1] for p in params[1:] if (len(p.split('=')) == 2)}
-	#print params #DEBUG
-	if endpoint in commands['map'].keys():
-		if ( (len(params) == 0) and (len(commands['map'][endpoint]) != 0)):
-		# if no parameters passed to endpoint which requires them 
-			for reqd_param in commands['map'][endpoint]:
-				params[reqd_param] = raw_input(
-					'enter a value for ' + reqd_param + 
-					' ' + list_opts('map', endpoint, reqd_param) + ': ')
-		if ( (len(params) == len(commands['map'][endpoint])) and
-			 params.keys() == commands['map'][endpoint].keys() ):
-			endpoint_url += '&'.join([p + '=' + params[p] for p in commands['map'][endpoint]])
-			for param in params:
-				# if illegal value passed as parameter, fail out
-				if params[param] not in commands['map'][endpoint][param]:
-					print 'ERROR:', repr(params[param]), 
-					print 'not recognized as legal value for', repr(param),
-					print list_opts('map', endpoint, param)
-					get_flag &= False
-		else: 
-		 	print 'endpoint', endpoint_url, 'requires params: '
-			for k in commands['map'][endpoint]:
-				print '\t', k,
-				print list_opts('map', endpoint, k)
-			print 'but received params:'
-			for k in params: print '\t', k + '=' + params[k]
-	else:
-		print 'map command not recognized:', endpoint
-
-	if get_flag:
-		r = get_api(endpoint_url, headers=h)
-		return r
-
-### generate the following two with s/map/navigation/g and s/map/papersoccer/g
 def do_section(section, params, h={}):
     #bool determines whether or not generated url is sound
     get_flag = True
