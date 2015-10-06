@@ -13,7 +13,12 @@ commands = {
 	'map': {
 		'enter': {},
 		'metro': {'direction':['cw', 'ccw']},
-		'bike': {'locationId':[]},
+		'bike': {'locationId':
+				['bryggen', 'folketinget', 'noerrebrogade', 
+				'langelinie', 'dis', 'christianshavn', 
+				'jaegersborggade', 'frederiksberg', 'louises', 
+				'koedbyen', 'parken']
+		},
 		'leave': {}
 	},
 	'navigation': {
@@ -194,9 +199,9 @@ def do_section(section, params, h={}):
 ##### COMMAND LINE INTERPRETERS <START> #####
 
 def main():
-	if len(sys.argv) > 1:
-		sess_id = init_agent(sys.argv[1])
-		open_sess(sess_id)
+	if len(sys.argv) == 3:
+		if sys.argv[1] == '--new': open_sess(init_agent(sys.argv[2]))
+		if sys.argv[1] == '--sess_id': open_sess(sys.argv[2])
 
 if __name__ == "__main__":
 	main()
