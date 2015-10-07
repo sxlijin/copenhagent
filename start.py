@@ -91,15 +91,27 @@ def open_sess(sess_id = ''):
 		# create cli
 		while(usi != 'exit'):
 			usi = raw_input('disai> ') # unsafe input !!!!!!!!
-			usi_split = usi.split()
-			if (usi_split[0] in commands.keys()):
-				 do_section(usi_split[0], usi_split, h=h)
-			else: 
-				if (usi != 'exit'):
-					 print 'command unrecognized, please try again'
+			try_command(usi, h)
+			#if usi == '': continue #handle empty case
+			#usi_split = usi.split()
+			#if (usi_split[0] in commands.keys()):
+			#	 do_section(usi_split[0], usi_split, h=h)
+			#else: 
+			#	if (usi != 'exit'):
+			#		 print 'command unrecognized, please try again'
 	else:
 	# if connecting with $sess_id fails, ignore and fail
 		print 'failed to connect, status code ' + str(r.status_code)
+
+def try_command(usi, h):
+	if usi == 'papersoccer win': return papersoccer_win(h)
+	usi_split = usi.split()
+	if ((len(usi_split) > 0) and (usi_split[0] in commands.keys())):
+		return do_section(usi_split[0], usi_split, h=h)
+	else: 
+		if (usi != 'exit'):
+			 print 'command unrecognized, please try again'
+	
 
 def do_section(section, params, h={}):
     #bool determines whether or not generated url is sound
@@ -139,6 +151,7 @@ def do_section(section, params, h={}):
             for k in params: print '\t', k + '=' + params[k]
     else:
         print section, 'command not recognized:', endpoint
+	get_flag &= False
 
     if get_flag:
         r = get_api(endpoint_url, headers=h)
@@ -149,7 +162,77 @@ def do_section(section, params, h={}):
 
 
 
-##### COMMAND LINE INTERPRETERS <START> #####
+
+##### ACTION FUNCTIONS <START> #####
+win_from = {
+	'n': [	'papersoccer play direction=ne',
+		'papersoccer play direction=s',
+		'papersoccer play direction=ne',
+		'papersoccer play direction=se',
+		'papersoccer play direction=se' ] ,
+	's': [	'papersoccer play direction=se',
+		'papersoccer play direction=n',
+		'papersoccer play direction=se',
+		'papersoccer play direction=ne',
+		'papersoccer play direction=ne' ]
+}
+
+def papersoccer_win_from(side, h):
+	for act in win_from[side]: try_command(act, h)
+	return try_command('papersoccer leave', h)
+	
+def papersoccer_win(h):
+	r = try_command('papersoccer enter', h)
+	r = try_command('papersoccer play direction=ne', h)
+	# start by trying the s side
+	if r.json()['action']['percepts'] == ['nw','sw']:
+	# if computer responds with >nw >sw
+		r = try_command('papersoccer play direction=se', h)
+		#go back to the center
+		r = try_command('papersoccer play direction=se', h)
+		#try the other side, the n side
+
+		if r.json()['action']['percepts'] == ['sw','nw']:
+		# if computer responds with >sw >nw
+			r = try_command('papersoccer play direction=ne', h)
+			#go back to the center
+			r = try_command('papersoccer play direction=e', h)
+			#go east
+			
+			if r.json()['action']['percepts'] == ['nw']:
+			# if computer responds with >nw
+				return papersoccer_win_from('n', h)
+			elif r.json()['action']['percepts'] == ['sw']:
+			# if computer responds with >sw
+				return papersoccer_win_from('s', h)
+		elif r.json()['action']['percepts'] == ['w']:
+			return papersoccer_win_from('s',h)
+	elif r.json()['action']['percepts'] == ['w']:
+	# if computer responds with >w
+		return papersoccer_win_from('n', h)
+
+	#return try_command('papersoccer leave', h)
+#
+#	if r.json()['action']['message'] == 'Opponent made 2 plays':
+#	# if computer responds with > sw > nw
+#		r = try_command('papersoccer play direction=ne', h)
+#		r = try_command('papersoccer play direction=ne', h)
+#		
+#		if r.json()['action']['message'] == 'Opponent made 2 plays':
+#			r = try_command('papersoccer play direction=se', h)
+#			r = try_command('papersoccer play direction=e', h)
+#	elif r.json()['action']['message'] == 'Opponent made 1 plays':
+#	# if computer responds with > w
+#
+#	return try_command('papersoccer leave', h)
+
+##### ACTION FUNCTIONS <END> #####
+
+
+
+
+
+#### COMMAND LINE INTERPRETERS <START> #####
 
 def main():
 	if len(sys.argv) == 3:
