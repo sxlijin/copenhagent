@@ -8,6 +8,10 @@ from random import randint
 
 ##### GLOBAL VARIABLES <START> #####
 
+quiet = False
+silent = False
+dump_json_state = False
+
 hostname='localhost'
 
 commands = {
@@ -43,8 +47,17 @@ commands = {
 ##### HELPER FUNCTIONS <START> #####
 
 def dump_json(json_obj):
+	if silent: return
 	try:	
-		if type(json_obj) is dict: print json.dumps(json_obj, indent=4)
+		if type(json_obj) is dict: 
+			if not dump_json_state and 'state' in json_obj.keys():
+				json_obj.pop('state')
+				print "popping .json()['state']"
+			#if 'action' in json_obj.keys(): 
+			#	print "only dumping .json()['action']"
+			#	dump_json(json_obj['action'])
+			#else:
+			print json.dumps(json_obj, indent=4)
 		elif type(json_obj) is requests.models.Response: dump_json(json_obj.json())
 	except (TypeError, ValueError) as e:
 		print e
@@ -55,14 +68,16 @@ def api_url(tail):
 	return 'http://' + hostname + ':3000/api' + tail
 
 def get_api(tail, headers={}):
+	get_url = api_url(tail)
+	r = requests.get(get_url, headers=headers)
+	if silent: return r
 	print
-	print '[poll API <START>]'
-	print 'GET:', api_url(tail)
+	print '[polling API <START>]'
+	print 'GET:', get_url
 	print '  header:', str(headers)
 	print 'GET -> JSON:'
-	r = requests.get(api_url(tail), headers=headers)
 	dump_json(r)
-	print '[poll API <END>]'
+	print '[polling API <END>]'
 	return r
 
 
@@ -100,6 +115,10 @@ def open_sess(sess_id = ''):
 def try_command(usi, h):
 	if usi == 'papersoccer win': return papersoccer_win(h)
 	usi_split = usi.split()
+	if len(usi_split) > 0 and usi_split[0].isdigit():
+		for i in range(int(usi_split[0])): 
+			try_command(usi[len(usi_split[0])+1:], h)
+		return
 	if ((len(usi_split) > 0) and (usi_split[0] in commands.keys())):
 		return do_section(usi_split[0], usi_split, h=h)
 	else: 
@@ -197,8 +216,7 @@ def papersoccer_win(h):
 				r.json()['action']['percepts'][0][0], h)
 	if r.json()['action']['percepts'] == ['w']:
 		r = papersoccer_win_from(dirs[rand2][0], h)
-	print
-	print r.json()['action']['message']
+	if not silent: print '\n', r.json()['action']['message']
 
 ##### ACTION FUNCTIONS <END> #####
 
