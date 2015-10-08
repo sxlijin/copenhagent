@@ -127,48 +127,50 @@ def try_command(usi, h):
 	
 
 def do_section(section, params, h={}):
-    #bool determines whether or not generated url is sound
-    get_flag = True
-    if (params[0] == section): params = params[1:]
-    if (len(params) == 0):
-        params = raw_input(
-            'enter a ' + section + ' command (' + ', '.join(commands[section].keys()) + '): '
-            ).split()
-    endpoint = params[0]
-    endpoint_url = '/' + section + '/' + endpoint + '?'
-    params = {p.split('=')[0]:p.split('=')[1] for p in params[1:] if (len(p.split('=')) == 2)}
-    #print params #DEBUG
-    if endpoint in commands[section].keys():
-        if ( (len(params) == 0) and (len(commands[section][endpoint]) != 0)):
-        # if no parameters passed to endpoint which requires them
-            for reqd_param in commands[section][endpoint]:
-                params[reqd_param] = raw_input(
-                    'enter a value for ' + reqd_param +
-                    ' ' + list_opts(section, endpoint, reqd_param) + ': ')
-        if ( (len(params) == len(commands[section][endpoint])) and
-             params.keys() == commands[section][endpoint].keys() ):
-            endpoint_url += '&'.join([p + '=' + params[p] for p in commands[section][endpoint]])
-            for param in params:
-                # if illegal value passed as parameter, fail out
-                if params[param] not in commands[section][endpoint][param]:
-                    print 'ERROR:', repr(params[param]),
-                    print 'not recognized as legal value for', repr(param),
-                    print list_opts(section, endpoint, param)
-                    get_flag &= False
-        else:
-            print 'endpoint', endpoint_url, 'requires params: '
-            for k in commands[section][endpoint]:
-                print '\t', k,
-                print list_opts(section, endpoint, k)
-            print 'but received params:'
-            for k in params: print '\t', k + '=' + params[k]
-    else:
-        print section, 'command not recognized:', endpoint
-	get_flag &= False
+	 #bool determines whether or not generated url is sound
+	 get_flag = True
+	 if (params[0] == section): params = params[1:]
+	 if (len(params) == 0):
+		  params = raw_input(
+				'enter a ' + section + ' command (' + ', '.join(commands[section].keys()) + '): '
+				).split()
+	 endpoint = params[0]
+	 endpoint_url = '/' + section + '/' + endpoint + '?'
+	 params = {p.split('=')[0]:p.split('=')[1] for p in params[1:] if (len(p.split('=')) == 2)}
+	 #print params #DEBUG
+	 if endpoint in commands[section].keys():
+		  if ( (len(params) == 0) and (len(commands[section][endpoint]) != 0)):
+		  # if no parameters passed to endpoint which requires them
+				for reqd_param in commands[section][endpoint]:
+					 params[reqd_param] = raw_input(
+						  'enter a value for ' + reqd_param +
+						  ' ' + list_opts(section, endpoint, reqd_param) + ': ')
+		  if ( (len(params) == len(commands[section][endpoint])) and
+				 params.keys() == commands[section][endpoint].keys() ):
+				endpoint_url += '&'.join([p + '=' + params[p] for p in commands[section][endpoint]])
+				for param in params:
+					 # if illegal value passed as parameter, fail out
+					 if params[param] not in commands[section][endpoint][param]:
+						  print 'ERROR:', repr(params[param]),
+						  print 'not recognized as legal value for', repr(param),
+						  print list_opts(section, endpoint, param)
+						  get_flag &= False
+		  else:
+				print 'endpoint', endpoint_url, 'requires params: '
+				for k in commands[section][endpoint]:
+					 print '\t', k,
+					 print list_opts(section, endpoint, k)
+				print 'but received params:'
+				for k in params: print '\t', k + '=' + params[k]
+				get_flag &= False
 
-    if get_flag:
-        r = get_api(endpoint_url, headers=h)
-        return r
+	 else:
+		print section, 'command not recognized:', endpoint
+		get_flag &= False
+
+	 if get_flag:
+		  r = get_api(endpoint_url, headers=h)
+		  return r
 
 ##### WORKER FUNCTIONS <END> #####
 
