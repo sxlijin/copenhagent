@@ -4,6 +4,7 @@ import readline
 import sys
 import requests
 import json
+from random import randint
 
 ##### GLOBAL VARIABLES <START> #####
 
@@ -45,7 +46,7 @@ def dump_json(json_obj):
 	try:	
 		if type(json_obj) is dict: print json.dumps(json_obj, indent=4)
 		elif type(json_obj) is requests.models.Response: dump_json(json_obj.json())
-	except TypeError as e:
+	except (TypeError, ValueError) as e:
 		print e
 		print json_obj
 
@@ -105,6 +106,7 @@ def open_sess(sess_id = ''):
 
 def try_command(usi, h):
 	if usi == 'papersoccer win': return papersoccer_win(h)
+	elif usi == 'pswin2': return pswin2(h)
 	usi_split = usi.split()
 	if ((len(usi_split) > 0) and (usi_split[0] in commands.keys())):
 		return do_section(usi_split[0], usi_split, h=h)
@@ -178,9 +180,13 @@ win_from = {
 }
 
 def papersoccer_win_from(side, h):
-	for act in win_from[side]: try_command(act, h)
-	return try_command('papersoccer leave', h)
+	for act in win_from[side]: r = try_command(act, h)
+	try_command('papersoccer leave', h)
+	return r
 	
+def try_ps_direction(direction, h):
+	return try_command('papersoccer play direction=' + direction, h)
+
 def papersoccer_win(h):
 	r = try_command('papersoccer enter', h)
 	r = try_command('papersoccer play direction=ne', h)
@@ -211,20 +217,26 @@ def papersoccer_win(h):
 	# if computer responds with >w
 		return papersoccer_win_from('n', h)
 
-	#return try_command('papersoccer leave', h)
-#
-#	if r.json()['action']['message'] == 'Opponent made 2 plays':
-#	# if computer responds with > sw > nw
-#		r = try_command('papersoccer play direction=ne', h)
-#		r = try_command('papersoccer play direction=ne', h)
-#		
-#		if r.json()['action']['message'] == 'Opponent made 2 plays':
-#			r = try_command('papersoccer play direction=se', h)
-#			r = try_command('papersoccer play direction=e', h)
-#	elif r.json()['action']['message'] == 'Opponent made 1 plays':
-#	# if computer responds with > w
-#
-#	return try_command('papersoccer leave', h)
+def pswin2(h):
+	dirs = ['ne','se']
+	rand2 = randint(0,1)
+
+	r = try_command('papersoccer enter', h)
+	r = try_ps_direction(dirs[rand2], h)
+	# try a random direction
+	if len(r.json()['action']['percepts']) == 2:
+		rand2 -= 1
+		for i in range(2): r = try_ps_direction(dirs[rand2], h)
+		if len(r.json()['action']['percepts']) == 2:
+			rand2 -= 1
+			r = try_ps_direction(dirs[rand2], h)
+			r = try_ps_direction('e', h)
+			r = papersoccer_win_from(
+				r.json()['action']['percepts'][0][0], h)
+	if r.json()['action']['percepts'] == ['w']:
+		r = papersoccer_win_from(dirs[rand2][0], h)
+	print
+	print r.json()['action']['message']
 
 ##### ACTION FUNCTIONS <END> #####
 
