@@ -9,7 +9,7 @@ from random import randint
 ##### GLOBAL VARIABLES <START> #####
 
 quiet = False
-silent = False
+silent = True or False
 dump_json_state = False
 
 hostname='localhost'
@@ -51,7 +51,7 @@ def dump_json(json_obj):
 	try:	
 		if type(json_obj) is dict: 
 			if not dump_json_state and 'state' in json_obj.keys():
-				json_obj.pop('state')
+			#	json_obj.pop('state')
 				print "popping .json()['state']"
 			#if 'action' in json_obj.keys(): 
 			#	print "only dumping .json()['action']"
