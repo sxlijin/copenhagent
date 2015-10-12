@@ -9,11 +9,12 @@ from random import randint
 ##### GLOBAL VARIABLES <START> #####
 
 quiet = False
-silent = True or False
+silent = False
 dump_json_state = False
 
 hostname='localhost'
 
+# set of all legal commands and parameters
 commands = {
 	'map': {
 		'enter': {},
@@ -47,30 +48,35 @@ commands = {
 ##### HELPER FUNCTIONS <START> #####
 
 def dump_json(json_obj):
+	# suppress output when silent==True
 	if silent: return
 	try:	
+		# type-check $json_obj
 		if type(json_obj) is dict: 
+			# check flags for specified behavior when dumping $json_obj
 			if not dump_json_state and 'state' in json_obj.keys():
-			#	json_obj.pop('state')
+				json_obj.pop('state')
 				print "popping .json()['state']"
-			#if 'action' in json_obj.keys(): 
-			#	print "only dumping .json()['action']"
-			#	dump_json(json_obj['action'])
-			#else:
+			# dump $json_obj
 			print json.dumps(json_obj, indent=4)
+		# if $json_obj is a <requests> object, cast to json and dump
 		elif type(json_obj) is requests.models.Response: dump_json(json_obj.json())
 	except (TypeError, ValueError) as e:
 		print e
 		print json_obj
 
 def api_url(tail):
+	# sanitize $tail before returning
 	if (tail[0] != '/'): tail = '/' + tail
 	return 'http://' + hostname + ':3000/api' + tail
 
 def get_api(tail, headers={}):
+	# construct url
 	get_url = api_url(tail)
+	# retrieve url
 	r = requests.get(get_url, headers=headers)
 	if silent: return r
+	# supress output when silent==True
 	print
 	print '[polling API <START>]'
 	print 'GET:', get_url
@@ -81,8 +87,9 @@ def get_api(tail, headers={}):
 	return r
 
 
-def list_opts(section, endpoint, param):
-    return '(' + ', '.join([repr(opt) for opt in commands[section][endpoint][param]]) + ')'
+def list_opts(cmd, endpoint, param):
+	# list options for $param in $cmd/$endpoint
+	return '(' + ', '.join([repr(opt) for opt in commands[cmd][endpoint][param]]) + ')'
 
 ##### HELPER FUNCTIONS <END> #####
 
@@ -96,81 +103,92 @@ def init_agent(name):
 	return get_api('/environment/connect?name=' + name).json()[u'agentToken']
 
 def open_sess(sess_id = ''):
+	# create header with $agentToken
 	h = {u'agentToken':sess_id}
+	# verify $agentToken by sending a message
 	r = get_api('/environment/agent/say?message=opening python session', headers=h)
 
-	if (200 == r.status_code):
+	# TODO: implement $silent flag
 	# if connection successful
+	if (200 == r.status_code):
+		# acknowledge success and spawn shell
 		print 'successfully opened session: ' + sess_id
 		usi = ''
-		#usi = 'exit' #DEBUG
-		# create cli
+		# allow $usi=='exit' to terminate shell
 		while(usi != 'exit'):
 			usi = raw_input('disai> ') # unsafe input !!!!!!!!
 			try_command(usi, h)
-	else:
+		# announce shell is closed
+		r = get_api('/environment/agent/say?message=closing python session', headers=h)
 	# if connecting with $sess_id fails, ignore and fail
+	else:
 		print 'failed to connect, status code ' + str(r.status_code)
 
 def try_command(usi, h):
+	# ad hoc commands
 	if usi == 'papersoccer win': return papersoccer_win(h)
 	usi_split = usi.split()
+	
+	# repeat command n times
 	if len(usi_split) > 0 and usi_split[0].isdigit():
+		# TODO: terminate loop early if any command while looping fails
 		for i in range(int(usi_split[0])): 
 			try_command(usi[len(usi_split[0])+1:], h)
 		return
+	
+	# attempt command
 	if ((len(usi_split) > 0) and (usi_split[0] in commands.keys())):
-		return do_section(usi_split[0], usi_split, h=h)
+		return run_command(usi_split[0], usi_split, h=h)
 	else: 
 		if (usi != 'exit'):
-			 print 'command unrecognized, please try again'
+			print 'command unrecognized, please try again'
 	
 
-def do_section(section, params, h={}):
-	 #bool determines whether or not generated url is sound
-	 get_flag = True
-	 if (params[0] == section): params = params[1:]
-	 if (len(params) == 0):
-		  params = raw_input(
-				'enter a ' + section + ' command (' + ', '.join(commands[section].keys()) + '): '
+def run_command(cmd, params, h={}):
+	# set get_flag to False if command syntax is bad
+	get_flag = True
+	if (params[0] == cmd): params = params[1:]
+	if (len(params) == 0):
+		params = raw_input(
+				'enter a ' + cmd + ' command (' + ', '.join(commands[cmd].keys()) + '): '
 				).split()
-	 endpoint = params[0]
-	 endpoint_url = '/' + section + '/' + endpoint + '?'
-	 params = {p.split('=')[0]:p.split('=')[1] for p in params[1:] if (len(p.split('=')) == 2)}
-	 #print params #DEBUG
-	 if endpoint in commands[section].keys():
-		  if ( (len(params) == 0) and (len(commands[section][endpoint]) != 0)):
-		  # if no parameters passed to endpoint which requires them
-				for reqd_param in commands[section][endpoint]:
-					 params[reqd_param] = raw_input(
-						  'enter a value for ' + reqd_param +
-						  ' ' + list_opts(section, endpoint, reqd_param) + ': ')
-		  if ( (len(params) == len(commands[section][endpoint])) and
-				 params.keys() == commands[section][endpoint].keys() ):
-				endpoint_url += '&'.join([p + '=' + params[p] for p in commands[section][endpoint]])
+	endpoint = params[0]
+	endpoint_url = '/' + cmd + '/' + endpoint + '?'
+	params = {p.split('=')[0]:p.split('=')[1] for p in params[1:] if (len(p.split('=')) == 2)}
+	#print params #DEBUG
+	if endpoint in commands[cmd].keys():
+		if ( (len(params) == 0) and (len(commands[cmd][endpoint]) != 0)):
+		# if no parameters passed to endpoint which requires them
+				for reqd_param in commands[cmd][endpoint]:
+					params[reqd_param] = raw_input(
+						'enter a value for ' + reqd_param +
+						' ' + list_opts(cmd, endpoint, reqd_param) + ': ')
+		if ( (len(params) == len(commands[cmd][endpoint])) and
+				params.keys() == commands[cmd][endpoint].keys() ):
+				endpoint_url += '&'.join([p + '=' + params[p] for p in commands[cmd][endpoint]])
 				for param in params:
-					 # if illegal value passed as parameter, fail out
-					 if params[param] not in commands[section][endpoint][param]:
-						  print 'ERROR:', repr(params[param]),
-						  print 'not recognized as legal value for', repr(param),
-						  print list_opts(section, endpoint, param)
-						  get_flag &= False
-		  else:
+					# if illegal value passed as parameter, fail out
+					if params[param] not in commands[cmd][endpoint][param]:
+						print 'ERROR:', repr(params[param]),
+						print 'not recognized as legal value for', repr(param),
+						print list_opts(cmd, endpoint, param)
+						get_flag &= False
+		else:
 				print 'endpoint', endpoint_url, 'requires params: '
-				for k in commands[section][endpoint]:
-					 print '\t', k,
-					 print list_opts(section, endpoint, k)
+				for k in commands[cmd][endpoint]:
+					print '\t', k,
+					print list_opts(cmd, endpoint, k)
 				print 'but received params:'
 				for k in params: print '\t', k + '=' + params[k]
 				get_flag &= False
 
-	 else:
-		print section, 'command not recognized:', endpoint
+	else:
+		print cmd, 'command not recognized:', endpoint
 		get_flag &= False
 
-	 if get_flag:
-		  r = get_api(endpoint_url, headers=h)
-		  return r
+	if get_flag:
+		r = get_api(endpoint_url, headers=h)
+		return r
 
 ##### WORKER FUNCTIONS <END> #####
 
