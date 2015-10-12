@@ -8,13 +8,16 @@ from random import randint
 
 ##### GLOBAL VARIABLES <START> #####
 
+### NOTE: internal state variables are tracked in [AI FUNCTIONS]
+
+### verbosity controls
 QUIET = False
 SILENT = False
-dump_json_state = True
+dump_json_state = False
 
 HOSTNAME='localhost'
 
-# set of all legal commands, endpoints, and parameters
+### set of all legal commands, endpoints, and parameters
 COMMANDS = {
 	'map': {
 		'enter': {},
@@ -45,6 +48,98 @@ COMMANDS = {
 
 
 
+##### STATE FUNCTIONS <START> #####
+
+### internal state variables
+LOCATION = ''
+DIS_CREDITS = 0
+AGENT_TOKEN = ''
+HEADER = {}
+
+### modify internal state
+def set_loc(loc):
+	global LOCATION
+	LOCATION = loc
+
+def incr_dis_credits(delta):
+	global DIS_CREDITS
+	DIS_CREDITS = delta + DIS_CREDITS
+
+def set_agent(token):
+	global AGENT_TOKEN
+	AGENT_TOKEN = token
+	global HEADER
+	HEADER = {'agentToken':AGENT_TOKEN}
+
+##### STATE FUNCTIONS <END> #####
+
+
+
+
+
+##### AI FUNCTIONS <START> #####
+
+
+
+
+def program():
+	#this shit is to do the map enter, map metro, and map bike commands and update loc internally
+	a= try_command('map enter').json()
+	set_loc( a['state']['agents'][AGENT_TOKEN]['locationId'] )
+        metroLine = a['state']['map']['metro']
+	print LOCATION 
+
+	b= try_command('map metro').json()
+	message =b['action']['message'].split();
+	set_loc( message[4] )
+	incr_dis_credits( -int(message[8]) )
+	print DIS_CREDITS
+	print LOCATION
+
+	c= try_command('map bike').json()
+	message =c['action']['message'].split();
+        set_loc( message[4] )
+	incr_dis_credits( int(message[8]) )
+        print LOCATION
+	print DIS_CREDITS
+
+
+	#this guy is to find what's cheaper, to metro it or to bike
+	dest=raw_input('tell me where u wanna go yo: ')
+	curLocation=LOCATION
+	#clockwise:
+	cwCost=0
+	while(curLocation!=dest):
+		tempLocation=metroLine[curLocation]['cw'].keys()[0]
+		cwCost+=metroLine[curLocation]['cw'][tempLocation]
+		curLocation=tempLocation
+	print 'The cost to get from ' +LOCATION + ' to in cw order '+dest+' is '+ str(cwCost)+'.'
+	#counterclockwise
+	ccwCost=0
+	curLocation=LOCATION
+	while(curLocation!=dest):
+		tempLocation=metroLine[curLocation]['ccw'].keys()[0]
+		cwCost+=metroLine[curLocation]['ccw'][tempLocation]
+		curLocation=tempLocation
+	print 'The cost to get from ' +LOCATION + ' to in ccw order '+dest+' is '+ str(cwCost)+'.'
+	cost=15
+	cheapest='bike'
+	if(cwCost<cost):
+		cost=cwCost
+		if(ccwCost<cost):
+			cheapest='ccw metro'
+		else:
+			cheapest='cw metro'
+	elif(ccwCost<cost):
+		cheapest='ccw metro'
+	print 'the cheapest way to get to ' + dest+ ' is to '+cheapest
+
+##### AI FUNCTIONS <END> #####
+
+
+
+
+
 ##### HELPER FUNCTIONS <START> #####
 
 def dump_json(json_obj):
@@ -66,24 +161,27 @@ def dump_json(json_obj):
 		print e
 		print json_obj
 
+
 def api_url(tail):
 	"""Returns full concatenated API URL to poll from path and query."""
 	# sanitize $tail before returning
 	if (tail[0] != '/'): tail = '/' + tail
 	return 'http://' + HOSTNAME + ':3000/api' + tail
 
-def get_api(tail, headers={}):
+
+def get_api(tail, h=None):
 	"""Returns <requests> obtained by polling the API."""
+	if h is None: h = HEADER
 	# construct url
 	get_url = api_url(tail)
 	# retrieve url
-	r = requests.get(get_url, headers=headers)
+	r = requests.get(get_url, headers=h)
 	# suppress output when SILENT==True
 	if SILENT: return r
 	print
 	print '[polling API <START>]'
 	print 'GET:', get_url
-	print '  header:', str(headers)
+	print '  header:', str(h)
 	print 'GET -> JSON:'
 	dump_json(r)
 	print '[polling API <END>]'
@@ -102,65 +200,69 @@ def list_opts(cmd, endpoint, param):
 
 ##### WORKER FUNCTIONS <START> #####
 
-def init_agent(name):
+def create_agent(name):
 	"""Creates new agent and returns the corresponding agentToken."""
-	return get_api('/environment/connect?name=' + name).json()[u'agentToken']
+	set_agent(get_api('/environment/connect?name=' + name).json()[u'agentToken'])
+	return AGENT_TOKEN
 
-def open_sess(sess_id = ''):
+
+def control_agent(agent_token):
 	"""Takes control of agent and spawns shell to issue commands for the agent."""
 	# create header with $agentToken
-	h = {u'agentToken':sess_id}
+	set_agent(agent_token)
 	# verify $agentToken by sending a message
-	r = get_api('/environment/agent/say?message=opening python session', headers=h)
+	r = get_api('/environment/agent/say?message=opening python session')
 
 	# TODO: implement $SILENT flag
 	# if connection successful
 	if (200 == r.status_code):
 		# acknowledge success and spawn shell
-		print 'successfully opened session: ' + sess_id
+		print '\n+ opened connection successfully: {}\n'.format(AGENT_TOKEN)
 		usi = ''
 		# allow $usi=='exit' to terminate shell
 		while(usi != 'exit'):
 			usi = raw_input('disai> ') # unsafe input !!!!!!!!
 			if (usi == 'exit'): continue
-			try_command(usi, h)
+			try_command(usi)
 		# announce shell is closed
-		r = get_api('/environment/agent/say?message=closing python session', headers=h)
+		get_api('/environment/agent/say?message=closing python session')
+		print '\n- closed connection successfully: {}\n'.format(AGENT_TOKEN)
 	# if connecting with $sess_id fails, ignore and fail
 	else:
 		print 'failed to connect: status code {}'.format(r.status_code)
 
 
-
-def try_command(usi, h):
+def try_command(usi, h=HEADER):
 	"""Polls API according to custom commands, returns received <requests> object."""
 	# ad hoc commands
+	if usi == 'program': return program()
 	if usi == 'papersoccer win': return ps_win(h)
+	
+	# break up the command
 	usi_split = usi.split()
 	
 	# repeat command n times
 	if len(usi_split) > 0 and usi_split[0].isdigit():
 		# TODO: terminate loop early if any command while looping fails
 		for i in range(int(usi_split[0])): 
-			try_command(usi[len(usi_split[0])+1:], h)
+			try_command(usi[len(usi_split[0])+1:])
 		return
 	
 	# attempt command
 	#if ((len(usi_split) > 0) and (usi_split[0] in COMMANDS.keys())):
 	#	return run_command(usi_split[0], usi_split, h=h)
-	if len(usi_split) > 0: return run_command(usi_split, h=h)
-
-
+	if len(usi_split) > 0: return run_command(usi_split)
 	
 # takes ['map', 'metro', 'direction=cw'] etc as $args
 # refers to 'map metro direction=cw' as:
 # 	- command (map)
 # 	- endpoint (metro)
 # 	- parameter (direction=cw)
-def run_command(args, h={}):
+def run_command(args, h=HEADER):
 	"""Parses command, polls API if sound, returns received <requests>."""
 	# verify specified command
-	if args[0] in COMMANDS.keys(): 	args = args[1:]
+	cmd = args[0]
+	if cmd in COMMANDS.keys(): 	args = args[1:]
 	# FAIL OUT if command verification fails
 	else:
 		print 'command not recognized: {}'.format(args[0])
@@ -185,8 +287,8 @@ def run_command(args, h={}):
 		# if no parameters passed to endpoint which requires them,
 		# prompt user for parameters
 		if len(args) == 0 and len(COMMANDS[cmd][endpoint]) != 0 :
-			for reqd_param in COMMANDS[cmd][endpoint]:
-				args[reqd_param] = raw_input( 
+			for param in COMMANDS[cmd][endpoint]:
+				args[param] = raw_input( 
 					'enter a value for {0} {1}: {0}='.format(
 					param, list_opts(cmd, endpoint, param)))
 
@@ -216,7 +318,7 @@ def run_command(args, h={}):
 	# construct api query and return requests object
 	api_query += '&'.join(
 		['{}={}'.format(p, args[p]) for p in COMMANDS[cmd][endpoint]])
-	r = get_api(api_path, headers=h)
+	r = get_api(api_query)
 	return r
 
 ##### WORKER FUNCTIONS <END> #####
@@ -239,34 +341,34 @@ win_from = {
 		'papersoccer play direction=ne' ]
 }
 
-def ps_force_win_from(side, h):
-	for act in win_from[side]: r = try_command(act, h)
+def ps_force_win_from(side):
+	for act in win_from[side]: r = try_command(act)
 	# uncomment to pause before leaving the game
 	# raw_input('press enter to leave papersoccer game ')
-	try_command('papersoccer leave', h)
+	try_command('papersoccer leave')
 	return r
 	
-def ps_play_dir(direction, h):
-	return try_command('papersoccer play direction=' + direction, h)
+def ps_play_dir(direction):
+	return try_command('papersoccer play direction=' + direction)
 
 def ps_win(h):
 	dirs = ['ne','se']
 	rand2 = randint(0,1)
 
-	r = try_command('papersoccer enter', h)
-	r = ps_play_dir(dirs[rand2], h)
+	r = try_command('papersoccer enter')
+	r = ps_play_dir(dirs[rand2])
 	# try a random direction
 	if len(r.json()['action']['percepts']) == 2:
 		rand2 -= 1
-		for i in range(2): r = ps_play_dir(dirs[rand2], h)
+		for i in range(2): r = ps_play_dir(dirs[rand2])
 		if len(r.json()['action']['percepts']) == 2:
 			rand2 -= 1
-			r = ps_play_dir(dirs[rand2], h)
-			r = ps_play_dir('e', h)
+			r = ps_play_dir(dirs[rand2])
+			r = ps_play_dir('e')
 			r = ps_force_win_from(
-				r.json()['action']['percepts'][0][0], h)
+				r.json()['action']['percepts'][0][0])
 	if r.json()['action']['percepts'] == ['w']:
-		r = ps_force_win_from(dirs[rand2][0], h)
+		r = ps_force_win_from(dirs[rand2][0])
 	if not SILENT: print '\n', r.json()['action']['message']
 
 ##### ACTION FUNCTIONS <END> #####
@@ -279,8 +381,8 @@ def ps_win(h):
 
 def main():
 	if len(sys.argv) == 3:
-		if sys.argv[1] == '--new': open_sess(init_agent(sys.argv[2]))
-		if sys.argv[1] == '--sess_id': open_sess(sys.argv[2])
+		if sys.argv[1] == '--new': control_agent(create_agent(sys.argv[2]))
+		if sys.argv[1] == '--agent': control_agent(sys.argv[2])
 
 if __name__ == "__main__":
 	main()
