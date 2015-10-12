@@ -249,8 +249,6 @@ def try_command(usi, h=HEADER):
 		return
 	
 	# attempt command
-	#if ((len(usi_split) > 0) and (usi_split[0] in COMMANDS.keys())):
-	#	return run_command(usi_split[0], usi_split, h=h)
 	if len(usi_split) > 0: return run_command(usi_split)
 	
 # takes ['map', 'metro', 'direction=cw'] etc as $args
