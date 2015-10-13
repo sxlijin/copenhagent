@@ -239,11 +239,11 @@ def control_agent(agent_token):
 		print 'failed to connect: status code {}'.format(r.status_code)
 
 
-def try_command(usi, h=HEADER):
+def try_command(usi):
 	"""Polls API according to custom commands, returns received <requests> object."""
 	# ad hoc commands
 	if usi == 'program': return program()
-	if usi == 'papersoccer win': return ps_win(h)
+	if usi == 'papersoccer win': return ps_win()
 	
 	# break up the command
 	usi_split = usi.split()
@@ -263,7 +263,7 @@ def try_command(usi, h=HEADER):
 # 	- command (map)
 # 	- endpoint (metro)
 # 	- parameter (direction=cw)
-def run_command(args, h=HEADER):
+def run_command(args):
 	"""Parses command, polls API if sound, returns received <requests>."""
 	# verify specified command
 	cmd = args[0]
@@ -356,7 +356,7 @@ def ps_force_win_from(side):
 def ps_play_dir(direction):
 	return try_command('papersoccer play direction=' + direction)
 
-def ps_win(h):
+def ps_win():
 	dirs = ['ne','se']
 	rand2 = randint(0,1)
 
