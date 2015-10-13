@@ -142,16 +142,74 @@ def program():
 	print 'the cheapest way to get to ' + dest+ ' is to '+cheapest
 
 def ai_nav():
+	"""Runs AI to play navigation."""
+	
+	# obtain FullResponse from /api/navigation/enter
 	r = try_command('navigation enter')
+
+	# filter navigation problem instance from FullResponse
 	nav_setup = r.json()['state']['navigation'][AGENT_TOKEN]
-	nav_state = nav_setup['position']
 	nav_config = nav_setup['config']
-	nav_board = nav_setup['graph']['vertices']
-	for tile in nav_board:
-		nav_board[tile]['moves'] = {}
-		if tile in nav_setup['graph']['edges']:
-			nav_board[tile]['moves'] = nav_setup['graph']['edges'][tile]
-	dump_json(nav_board, override=True)
+	nav_graph = nav_setup['graph']
+
+	
+	# create dicts $vertex_weight and $vertex_moves with keys $vertex
+	# '[{row},{column}]' is the format of $vertex
+	(vertex_weight, vertex_moves) = ({}, {})
+	for vertex in nav_graph['vertices']:
+		vertex_weight[vertex] = nav_graph['vertices'][vertex]['weight']
+		vertex_moves[vertex] = {}
+		if vertex in nav_graph['edges']: 
+			vertex_moves[vertex] = nav_graph['edges'][vertex]
+		
+	# create internal state for navigation
+	# ['pos'] -> current position, format is [{row},{column}]
+	# ['creds'] -> credits earned whilst playing current instance
+	# ['moves'] -> moves made whilst playing current instance
+	nav_state = {}
+	nav_state['pos'] = '[{},{}]'.format(
+		nav_setup['position']['row'], nav_setup['position']['row'] )
+	nav_state['creds'] = 0
+	nav_state['moves'] = 0
+	
+	# methods to access the internal state and its characteristics
+	def pos(): 
+	"""Returns current position of agent."""
+		return nav_state['pos']
+	def weight(vertex=None): 
+	"""Returns weight of $vertex; current pos is default vertex."""
+		if vertex == None: vertex = pos()
+		return vertex_weight[vertex]
+	def moves(vertex=None): 
+	"""Returns possible moves from $vertex; current pos is default vertex."""
+		if vertex == None: vertex = pos()
+		return vertex_moves[vertex]
+	def dest(direction):  
+	"""Returns destination of moving in $direction from current pos."""
+		return moves()[direction]
+
+	# methods to modify internal state
+	def set_pos(new_pos): 
+	"""Set the position of the agent."""
+		nav_state['pos'] = new_pos
+	def play_nav_dir(d): 
+	"""Update internal state and make a move in navigation."""
+		set_pos( moves()[direction] )
+		nav_state['creds'] += weight()
+		nav_state['moves'] += 1
+		return try_command('navigation lane direction=' + d)
+	
+	# play navigation
+	while moves() != {} :
+		print pos(), moves()
+		raw_input('press enter to continue navigation')
+		# move in random direction
+		direction = moves().keys()[randint(0, len(moves())-1)]
+		play_nav_dir(direction)
+	print 'earned {} discredits in {} moves playing nav'.format(
+		nav_state['creds'], nav_state['moves'])
+	raw_input('finished, press enter to leave navigation')
+	r = try_command('navigation leave')
 
 ##### AI FUNCTIONS <END> #####
 
