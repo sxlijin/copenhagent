@@ -14,7 +14,7 @@ from random import randint
 ### verbosity controls
 QUIET = False
 SILENT = False
-dump_json_state = False
+dump_json_state = True
 
 HOSTNAME='localhost'
 
@@ -378,10 +378,27 @@ def ps_win(h):
 
 #### COMMAND LINE INTERPRETERS <START> #####
 
+def help():
+	print 
+	print 'Bad arguments received. Script can be run with the following options: '
+
+	print '\t--new arg\t:',
+	print 'create an agent with name $arg and take control thereof'
+
+	print '\t--agent arg\t:',
+	print 'take control of agent with agentToken $arg'
+	print
+
 def main():
 	if len(sys.argv) == 3:
-		if sys.argv[1] == '--new': control_agent(create_agent(sys.argv[2]))
-		if sys.argv[1] == '--agent': control_agent(sys.argv[2])
+		if sys.argv[1] == '--new': 
+			control_agent(create_agent(sys.argv[2]))
+			return
+		if sys.argv[1] == '--agent': 
+			control_agent(sys.argv[2])
+			return
+	# print help message if bad arguments received
+	help()
 
 if __name__ == "__main__":
 	main()
