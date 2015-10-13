@@ -107,7 +107,7 @@ def program():
 
 	#this guy is to find what's cheaper, to metro it or to bike
 	dest=raw_input('tell me where u wanna go yo: ')
-	if(dest not in metroLine.keys()):
+	while(dest not in metroLine.keys()):
 	    print('FOOL THAT\'S NOT A VALID LOCATION')
 	    print('Try that again. Here\'s your options cuz you can\'t remember probably.')
 	    print metroLine.keys()
@@ -141,6 +141,18 @@ def program():
 		cheapest='ccw metro'
 	print 'the cheapest way to get to ' + dest+ ' is to '+cheapest
 
+def ai_nav():
+	r = try_command('navigation enter')
+	nav_setup = r.json()['state']['navigation'][AGENT_TOKEN]
+	nav_state = nav_setup['position']
+	nav_config = nav_setup['config']
+	nav_board = nav_setup['graph']['vertices']
+	for tile in nav_board:
+		nav_board[tile]['moves'] = {}
+		if tile in nav_setup['graph']['edges']:
+			nav_board[tile]['moves'] = nav_setup['graph']['edges'][tile]
+	dump_json(nav_board, override=True)
+
 ##### AI FUNCTIONS <END> #####
 
 
@@ -149,10 +161,10 @@ def program():
 
 ##### HELPER FUNCTIONS <START> #####
 
-def dump_json(json_obj):
+def dump_json(json_obj, override=False):
 	"""Prints human-readable JSON from dict or <requests>."""
 	# suppress output when SILENT==True
-	if SILENT: return
+	if SILENT and not override: return
 	try:	
 		# type-check $json_obj
 		if type(json_obj) is dict: 
@@ -244,6 +256,7 @@ def try_command(usi):
 	# ad hoc commands
 	if usi == 'program': return program()
 	if usi == 'papersoccer win': return ps_win()
+	if usi == 'navigation ai': return ai_nav()
 	
 	# break up the command
 	usi_split = usi.split()
