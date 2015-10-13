@@ -12,7 +12,7 @@ from random import randint
 
 ### verbosity controls
 QUIET = False
-SILENT = False
+SILENT = True
 dump_json_state = False
 
 HOSTNAME='localhost'
@@ -87,25 +87,30 @@ def program():
 	a= try_command('map enter').json()
 	set_loc( a['state']['agents'][AGENT_TOKEN]['locationId'] )
         metroLine = a['state']['map']['metro']
-	print LOCATION 
+	print ('Your starting location is ')+LOCATION 
 
 	b= try_command('map metro').json()
 	message =b['action']['message'].split();
 	set_loc( message[4] )
 	incr_dis_credits( -int(message[8]) )
-	print DIS_CREDITS
-	print LOCATION
+	print ('Current discredits: ')+str(DIS_CREDITS)
+	print ('Current location: ')+LOCATION
 
 	c= try_command('map bike').json()
 	message =c['action']['message'].split();
         set_loc( message[4] )
 	incr_dis_credits( int(message[8]) )
-        print LOCATION
-	print DIS_CREDITS
+        print ('Current location: ')+LOCATION
+	print ('Current discredits: ')+str(DIS_CREDITS)
 
 
 	#this guy is to find what's cheaper, to metro it or to bike
 	dest=raw_input('tell me where u wanna go yo: ')
+	if(dest not in metroLine.keys()):
+	    print('FOOL THAT\'S NOT A VALID LOCATION')
+	    print('Try that again. Here\'s your options cuz you can\'t remember probably.')
+	    print metroLine.keys()
+	    dest=raw_input('gimme that location: ')
 	curLocation=LOCATION
 	#clockwise:
 	cwCost=0
@@ -113,17 +118,18 @@ def program():
 		tempLocation=metroLine[curLocation]['cw'].keys()[0]
 		cwCost+=metroLine[curLocation]['cw'][tempLocation]
 		curLocation=tempLocation
-	print 'The cost to get from ' +LOCATION + ' to in cw order '+dest+' is '+ str(cwCost)+'.'
+	print 'The cost to get from ' +LOCATION + ' to '+dest+ ' with the metro in cw order is '+ str(cwCost)+'.'
 	#counterclockwise
 	ccwCost=0
 	curLocation=LOCATION
 	while(curLocation!=dest):
 		tempLocation=metroLine[curLocation]['ccw'].keys()[0]
-		cwCost+=metroLine[curLocation]['ccw'][tempLocation]
+		ccwCost+=metroLine[curLocation]['ccw'][tempLocation]
 		curLocation=tempLocation
-	print 'The cost to get from ' +LOCATION + ' to in ccw order '+dest+' is '+ str(cwCost)+'.'
+	print 'The cost to get from ' +LOCATION + ' to '+dest+' with the metro in ccw order is '+ str(ccwCost)+'.'
 	cost=15
 	cheapest='bike'
+	print "cwcost is {}, ccwcost is {}".format(cwCost, ccwCost)
 	if(cwCost<cost):
 		cost=cwCost
 		if(ccwCost<cost):
