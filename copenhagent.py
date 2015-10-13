@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-### adding comments here
 
 import readline
 import sys
