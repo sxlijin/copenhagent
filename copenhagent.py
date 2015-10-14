@@ -141,6 +141,9 @@ def program():
         cheapest='ccw metro'
     print 'the cheapest way to get to ' + dest+ ' is to '+cheapest
 
+
+### NAVIGATION
+
 def ai_nav():
     """Runs AI to play navigation."""
     
@@ -155,14 +158,14 @@ def ai_nav():
     nav_graph = nav_setup['graph']
 
     if debug:
-	    print '=== dumping $nav_config ==='
-	    dump_json(nav_config, override=True)
-	    print
-	    print '=== showing $nav_setup.keys() ==='
-	    print nav_setup.keys()
-	    print
-	    print '=== showing $nav_setup[position] ==='
-	    dump_json(nav_setup['position'], override=True)
+        print '=== dumping $nav_config ==='
+        dump_json(nav_config, override=True)
+        print
+        print '=== showing $nav_setup.keys() ==='
+        print nav_setup.keys()
+        print
+        print '=== showing $nav_setup[position] ==='
+        dump_json(nav_setup['position'], override=True)
 
     # create dicts $vertex_weight and $vertex_moves with keys $vertex
     # '[{row},{column}]' is the format of $vertex
@@ -262,6 +265,12 @@ def ai_nav():
                     tuple(weight(x) for x in legal_moves().values()))
             play_nav_dir(direction)
 
+    def nav_iter_dfs():
+        """implements iterative depth first"""
+        frontier = []
+        explored = set()
+        
+
     # play navigation
     if debug:
         print 'starting at {}, available moves are {}'.format(pos(), legal_moves())
@@ -275,6 +284,172 @@ def ai_nav():
     ret = (n_creds(), n_moves(), avg_earned(), real_avg_earned())
     print('%10d, %10d, %10.4f, %10.4f' % ret)
     return ret
+
+
+
+
+
+class NavigationInstance:
+    """Controls an agent to play navigation."""
+    def __init__(self, agent_token, debug=False):
+        """call nav/enter() and parse returned FullResponse"""
+        
+        self.debug = debug
+        
+        # TODO: convert this entire thing to a class
+        # store the agent token and header
+        self.h = {'agentToken':agent_token}
+        r = try_command('navigation enter', h=h)
+
+        # begin parsing the FullResponse
+        nav_setup = r.json()['state']['navigation'][AGENT_TOKEN]
+        nav_config = nav_setup['config']
+        nav_graph = nav_setup['graph']
+
+        if debug:
+            print '=== dumping $nav_config ==='
+            dump_json(nav_config, override=True)
+            print
+            print '=== showing $nav_setup.keys() ==='
+            print nav_setup.keys()
+            print
+            print '=== showing $nav_setup[position] ==='
+            dump_json(nav_setup['position'], override=True)
+            
+        # create dicts $vertex_weight and $vertex_moves with keys $vertex
+        # '[{row},{column}]' is the format of $vertex
+        self.vertex_weight = {}
+        self.vertex_nexts = {}
+        for vertex in nav_graph['vertices']:
+            self.vertex_weight[vertex] = nav_graph['vertices'][vertex]['weight']
+            self.vertex_nexts[vertex] = {}
+            if vertex in nav_graph['edges']: 
+                self.vertex_nexts[vertex] = nav_graph['edges'][vertex]
+
+        # create internal state for navigation
+        # ['pos'] -> current position, format is [{row},{column}]
+        # ['creds'] -> credits earned whilst playing current instance
+        # ['moves'] -> moves made whilst playing current instance
+        # ['creds_freqs'] -> record how often specific #s of credits are earned
+        #   exists primarily for statistical purposes
+        self.init_vertex = '[{row},{column}]'.format(**nav_setup)
+    
+    # methods to access the internal state and its characteristics
+    def get_init_pos(self): 
+        """Returns initial position of agent as '[r, c]'."""
+        return self.init_vertex
+
+    def get_weight(self, vertex): 
+        """Returns weight of $vertex."""
+        return self.vertex_weight[vertex]
+
+    def get_nexts_from(self, vertex): 
+        """Return dict of possible moves from $vertex
+        where directions are keys and destinations are values;
+        current pos is default vertex."""
+        return self.vertex_nexts[vertex]
+
+    def get_dest_from_via(self, vertex, direction):
+        """Returns would-be dest of moving in $direction from $vertex."""
+        return get_nexts_from(vertex)['direction']
+    
+    def get_dir_to_dest(self, vertex, destination):
+        """Returns direction to get from $vertex to $destination."""
+        nexts = get_nexts_from(vertex)
+        if destination in nexts.viewvalues():
+            # iterate through: no worry about cost because len(nexts[dir]) <= 3
+            for direction in nexts: 
+                if destination == nexts[direction]: return direction
+
+class NavigationState:
+    """Creates an immutable NavigationState for a NavigationInstance."""
+    
+    # TODO: clean up commented code!
+
+    def __init__(self, nav_inst, pos=None, creds=None, moves=None):
+        #adding $nav_inst to NavState does not add significant overhead
+        #because it just means that the NavState binds to an existing NavInst
+        self.nav_inst = nav_inst
+        self.pos = self.nav_inst.get_init_pos() if pos == None else pos
+        self.creds = 0 if creds == None else creds
+        self.moves = 0 if moves == None else moves
+
+    def get_pos(self):
+        """Returns current position."""
+        return self.pos
+    
+    def get_n_creds(self):
+        """Returns number of earned discredits."""
+        return self.creds
+
+    def get_n_moves(self):
+        """Returns number of moves made."""
+        return self.moves
+    
+    def get_weight(self):
+        """Returns weight corresponding to $self.pos."""
+        return self.nav_inst.get_weight(self.pos)
+
+    def get_nexts(self):
+        """Return dict of possible moves from $self.pos
+        where directions are keys and destinations are values."""
+        return self.nav_inst.get_nexts_from(self.pos)
+    
+    def get_dest_via(self, direction):
+        """Return would-be dest of moving in $direction from $self.pos"""
+        return self.nav_inst.get_dest_from_via(self.pos, direction)
+
+    def get_dir_to(self, destination):
+        """Return direction to get from $self.pos to $destination."""
+        return self.nav_inst.get_dir_to_dest(self.pos, destination)
+    
+    def get_avg_creds(self):
+        """Returns average discredits earned per move by agent."""
+        try: return 1.0*get_n_creds()/get_n_moves()
+        except ZeroDivisionError: return 0.0
+
+    #def _set_incr_creds(self, delta=None):
+    #    """Increase earned credits by $delta."""
+    #    if delta == None: delta = get_weight()
+    #    if delta not in nav_state['creds_freqs']: self.creds_freqs[delta] = 0
+    #    self.creds_freqs[delta] += 1
+    #    self.creds += delta
+
+    #def _set_incr_moves(self, delta=None):
+    #    """Increase number of moves made by $delta."""
+    #    if delta == None: delta = 1
+    #    self.moves += delta
+    
+    def get_copy(self):
+        """Return copy of internal state."""
+        # TODO: actually implement !!!!!!!!!!!!!!!!!!!
+        return self
+    
+    def get_result(self, direction):
+        """Move agent in $direction and update internal state accordingly."""
+        #self.pos = get_nexts()[direction]
+        #set_incr_creds()
+        #set_incr_moves()
+        return NavigationState(self.nav_inst, pos=get_nexts()[direction],
+            creds = get_n_creds(), moves = get_n_moves())
+
+
+class NavigationAgent:
+    """NavigationAgent to play a NavigationInstance."""
+    
+    def __init__(self, nav_state):
+        self.nav_state = nav_state
+    
+    def nav_random(self):
+        # NOTE: this is a problem, needs to be deepcopied somehow
+        state = self.nav_state
+        # maybe this?
+        # state = self.nav_state.get_copy()
+        moves = []
+        while state.get_nexts() != {} : 
+            direction = get_nexts().keys()[randint(0, len(get_nexts())-1)]
+            state = state.get_result(direction)
+            
 
 ##### AI FUNCTIONS <END> #####
 
