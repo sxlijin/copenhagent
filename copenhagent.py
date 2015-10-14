@@ -144,6 +144,8 @@ def program():
 def ai_nav():
     """Runs AI to play navigation."""
     
+    debug = False
+
     # obtain FullResponse from /api/navigation/enter
     r = try_command('navigation enter')
 
@@ -152,14 +154,15 @@ def ai_nav():
     nav_config = nav_setup['config']
     nav_graph = nav_setup['graph']
 
-    print '=== dumping $nav_config ==='
-    dump_json(nav_config, override=True)
-    print
-    print '=== showing $nav_setup.keys() ==='
-    print nav_setup.keys()
-    print
-    print '=== showing $nav_setup[position] ==='
-    dump_json(nav_setup['position'], override=True)
+    if debug:
+	    print '=== dumping $nav_config ==='
+	    dump_json(nav_config, override=True)
+	    print
+	    print '=== showing $nav_setup.keys() ==='
+	    print nav_setup.keys()
+	    print
+	    print '=== showing $nav_setup[position] ==='
+	    dump_json(nav_setup['position'], override=True)
 
     # create dicts $vertex_weight and $vertex_moves with keys $vertex
     # '[{row},{column}]' is the format of $vertex
@@ -179,6 +182,7 @@ def ai_nav():
         nav_setup['position']['row'], nav_setup['position']['column'] )
     nav_state['creds'] = 0
     nav_state['moves'] = 0
+    nav_state['creds_freqs'] = {}
     
     # methods to access the internal state and its characteristics
     def pos(): 
@@ -206,30 +210,71 @@ def ai_nav():
         return legal_moves()[direction]
     def avg_earned():
         """Returns average credits earned per action in navigation."""
-        
+        try: return 1.0*n_creds()/n_moves() 
+        except ZeroDivisionError: return 0
+    def real_avg_earned():
+        """Returns avg_earned, except also counts nav/enter() and nav/leave() actions."""
+        return 1.0*n_creds() / (n_moves()+2)
 
     # methods to modify internal state
     def set_pos(new_pos): 
         """Set the position of the agent."""
         nav_state['pos'] = new_pos
+    def incr_creds(delta=None):
+        """Increase earned credits by $delta."""
+        if delta == None: delta = weight()
+        if delta not in nav_state['creds_freqs']: nav_state['creds_freqs'][delta] = 0
+        nav_state['creds_freqs'][delta] += 1
+        nav_state['creds'] += delta
+    def incr_moves(delta=None):
+        """Increase number of moves made by $delta."""
+        if delta == None: delta = 1
+        nav_state['moves'] += delta
     def play_nav_dir(d): 
         """Update internal state and make a move in navigation."""
-        set_pos( legal_moves()[direction] )
-        nav_state['creds'] += weight()
-        nav_state['moves'] += 1
-        return try_command('navigation lane direction=' + d)
+        set_pos( legal_moves()[d] )
+        incr_creds()
+        incr_moves()
+        r = try_command('navigation lane direction=' + d)
+        if debug:
+            print 'moved to {}, available moves are {}'.format(pos(), legal_moves())
+            print 'earned {} discredits in {} moves playing nav'.format(n_creds(), n_moves())
+        return r
     
+    # different methods to play navigation
+    def random_walk():
+        """Follow a path at random through the graph."""
+        while legal_moves() != {} :
+            #if 'break' == raw_input('press enter to continue navigation\n'): break
+            # move in random direction
+            direction = legal_moves().keys()[randint(0, len(legal_moves())-1)]
+            play_nav_dir(direction)
+    
+    def nav_greedy_best_first():
+        """implements greedy best first walk"""
+        while legal_moves() != {}:
+            direction = legal_moves().keys()[0]
+            for d in legal_moves():
+                if weight(legal_moves()[d]) > weight(legal_moves()[direction]): direction = d 
+            if debug:
+                print "will earn {} creds, options are {}".format(
+                    weight(legal_moves()[direction]), 
+                    tuple(weight(x) for x in legal_moves().values()))
+            play_nav_dir(direction)
+
     # play navigation
-    print 'starting at {}, available moves are {}'.format(pos(), legal_moves())
-    while legal_moves() != {} :
-        #if 'break' == raw_input('press enter to continue navigation\n'): break
-        # move in random direction
-        direction = legal_moves().keys()[randint(0, len(legal_moves())-1)]
-        play_nav_dir(direction)
-        print 'moved to {}, available moves are {}'.format(pos(), legal_moves())
-        print 'earned {} discredits in {} moves playing nav'.format(n_creds(), n_moves())
+    if debug:
+        print 'starting at {}, available moves are {}'.format(pos(), legal_moves())
+    nav_greedy_best_first()
+    if debug:
+        print('%.2f (really %.2f) credits earned on average %s' % 
+            (avg_earned(), real_avg_earned(),
+            tuple(sorted(nav_state['creds_freqs'].viewitems()))) )
     #if '' == raw_input('finished, press enter to leave\n'): 
     try_command('navigation leave')
+    ret = (n_creds(), n_moves(), avg_earned(), real_avg_earned())
+    print('%10d, %10d, %10.4f, %10.4f' % ret)
+    return ret
 
 ##### AI FUNCTIONS <END> #####
 
@@ -342,8 +387,15 @@ def try_command(usi):
     # repeat command n times
     if len(usi_split) > 0 and usi_split[0].isdigit():
         # TODO: terminate loop early if any command while looping fails
+        usi = usi[len(usi_split[0])+1:]
+        (n_creds, n_moves) = (0, 0)
         for i in range(int(usi_split[0])): 
-            try_command(usi[len(usi_split[0])+1:])
+            r = try_command(usi)   
+            if usi == 'navigation ai':
+                (n_creds, n_moves) = (n_creds + r[0], n_moves + r[1])
+        print '='*43
+        avg = 1.0*n_creds/n_moves if n_moves != 0 else 0
+        print '%.4f avg creds over %d moves (total creds %d)' % (avg, n_moves, n_creds)
         return
     
     # attempt command
