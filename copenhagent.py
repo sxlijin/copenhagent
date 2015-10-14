@@ -145,6 +145,10 @@ def program():
 ### NAVIGATION
 
 def ai_nav():
+    #old_ai_nav()
+    ai_nav_2()
+
+def old_ai_nav():
     """Runs AI to play navigation."""
     
     debug = False
@@ -285,9 +289,10 @@ def ai_nav():
     print('%10d, %10d, %10.4f, %10.4f' % ret)
     return ret
 
-
-
-
+def ai_nav_2():
+    nav_inst = NavigationInstance(AGENT_TOKEN, debug=True)
+    nav_agent = NavigationAgent(nav_inst, debug=True)
+    nav_agent.nav_random()
 
 class NavigationInstance:
     """Controls an agent to play navigation."""
@@ -299,7 +304,7 @@ class NavigationInstance:
         # TODO: convert this entire thing to a class
         # store the agent token and header
         self.h = {'agentToken':agent_token}
-        r = try_command('navigation enter', h=h)
+        r = try_command('navigation enter')#, h=self.h)
 
         # begin parsing the FullResponse
         nav_setup = r.json()['state']['navigation'][AGENT_TOKEN]
@@ -332,7 +337,7 @@ class NavigationInstance:
         # ['moves'] -> moves made whilst playing current instance
         # ['creds_freqs'] -> record how often specific #s of credits are earned
         #   exists primarily for statistical purposes
-        self.init_vertex = '[{row},{column}]'.format(**nav_setup)
+        self.init_vertex = '[{row},{column}]'.format(**nav_setup['position'])
     
     # methods to access the internal state and its characteristics
     def get_init_pos(self): 
@@ -430,26 +435,40 @@ class NavigationState:
         #self.pos = get_nexts()[direction]
         #set_incr_creds()
         #set_incr_moves()
-        return NavigationState(self.nav_inst, pos=get_nexts()[direction],
-            creds = get_n_creds(), moves = get_n_moves())
+        return NavigationState(self.nav_inst, pos=self.get_nexts()[direction],
+            creds = self.get_n_creds(), moves = self.get_n_moves())
 
 
 class NavigationAgent:
     """NavigationAgent to play a NavigationInstance."""
     
-    def __init__(self, nav_state):
-        self.nav_state = nav_state
-    
+    def __init__(self, nav_inst, nav_state=None, debug=False):
+        self.nav_inst = nav_inst
+        self.nav_state = NavigationState(nav_inst) if nav_state == None else nav_state
+        self.debug = debug
+
     def nav_random(self):
-        # NOTE: this is a problem, needs to be deepcopied somehow
+        # NOTE: warning, this binds $state to $self.nav_state
         state = self.nav_state
-        # maybe this?
+        if self.debug: print (self.nav_state, state)
         # state = self.nav_state.get_copy()
         moves = []
         while state.get_nexts() != {} : 
-            direction = get_nexts().keys()[randint(0, len(get_nexts())-1)]
+            if self.debug: print state.get_pos()
+            next_dirs = state.get_nexts()
+            direction = next_dirs.keys()[randint(0, len(next_dirs)-1)]
+            # binds $state to a new NavState
             state = state.get_result(direction)
-            
+            moves.append((direction, state))
+        # TODO: cleanup *sorely* needed below, if only cleanup in the sense of 
+        #   organizing NavigationAgent
+        if self.debug:  
+            for move_state in moves:  print move_state[1].get_pos()
+        for move_state in moves:
+            try_command('navigation lane direction={}'.format(move_state[0]))
+        if '' == raw_input('press enter to leave'): 
+            try_command('navigation leave')
+        
 
 ##### AI FUNCTIONS <END> #####
 
