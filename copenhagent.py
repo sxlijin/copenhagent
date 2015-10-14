@@ -152,7 +152,15 @@ def ai_nav():
     nav_config = nav_setup['config']
     nav_graph = nav_setup['graph']
 
-    
+    print '=== dumping $nav_config ==='
+    dump_json(nav_config, override=True)
+    print
+    print '=== showing $nav_setup.keys() ==='
+    print nav_setup.keys()
+    print
+    print '=== showing $nav_setup[position] ==='
+    dump_json(nav_setup['position'], override=True)
+
     # create dicts $vertex_weight and $vertex_moves with keys $vertex
     # '[{row},{column}]' is the format of $vertex
     (vertex_weight, vertex_moves) = ({}, {})
@@ -168,7 +176,7 @@ def ai_nav():
     # ['moves'] -> moves made whilst playing current instance
     nav_state = {}
     nav_state['pos'] = '[{},{}]'.format(
-        nav_setup['position']['row'], nav_setup['position']['row'] )
+        nav_setup['position']['row'], nav_setup['position']['column'] )
     nav_state['creds'] = 0
     nav_state['moves'] = 0
     
@@ -180,9 +188,13 @@ def ai_nav():
         """Returns weight of $vertex; current pos is default vertex."""
         if vertex == None: vertex = pos()
         return vertex_weight[vertex]
-    def num_moves():
+    def n_creds():
+        """Returns number of discredits earned insofar."""
+        return nav_state['creds']
+    def n_moves():
+        """Returns number of moves earned insofar."""
         return nav_state['moves']
-    def moves(vertex=None): 
+    def legal_moves(vertex=None): 
         """Returns dict of possible moves from $vertex
         where directions are keys and destinations are values;
         current pos is default vertex."""
@@ -191,7 +203,7 @@ def ai_nav():
     def dest(direction):  
         """Returns would-be destination of moving in 
         $direction from current pos."""
-        return moves()[direction]
+        return legal_moves()[direction]
     def avg_earned():
         """Returns average credits earned per action in navigation."""
         
@@ -202,22 +214,22 @@ def ai_nav():
         nav_state['pos'] = new_pos
     def play_nav_dir(d): 
         """Update internal state and make a move in navigation."""
-        set_pos( moves()[direction] )
+        set_pos( legal_moves()[direction] )
         nav_state['creds'] += weight()
         nav_state['moves'] += 1
         return try_command('navigation lane direction=' + d)
     
     # play navigation
-    while moves() != {} :
-        print pos(), moves()
-        raw_input('press enter to continue navigation')
+    print 'starting at {}, available moves are {}'.format(pos(), legal_moves())
+    while legal_moves() != {} :
+        #if 'break' == raw_input('press enter to continue navigation\n'): break
         # move in random direction
-        direction = moves().keys()[randint(0, len(moves())-1)]
+        direction = legal_moves().keys()[randint(0, len(legal_moves())-1)]
         play_nav_dir(direction)
-    print 'earned {} discredits in {} moves playing nav'.format(
-        nav_state['creds'], nav_state['moves'])
-    if 'leave' == raw_input('finished, type leave to leave navigation'):
-        r = try_command('navigation leave')
+        print 'moved to {}, available moves are {}'.format(pos(), legal_moves())
+        print 'earned {} discredits in {} moves playing nav'.format(n_creds(), n_moves())
+    #if '' == raw_input('finished, press enter to leave\n'): 
+    try_command('navigation leave')
 
 ##### AI FUNCTIONS <END> #####
 
