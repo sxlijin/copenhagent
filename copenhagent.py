@@ -145,151 +145,6 @@ def program():
 ### NAVIGATION
 
 def ai_nav():
-    #old_ai_nav()
-    ai_nav_2()
-
-def old_ai_nav():
-    """Runs AI to play navigation."""
-    
-    debug = False
-
-    # obtain FullResponse from /api/navigation/enter
-    r = try_command('navigation enter')
-
-    # filter navigation problem instance from FullResponse
-    nav_setup = r.json()['state']['navigation'][AGENT_TOKEN]
-    nav_config = nav_setup['config']
-    nav_graph = nav_setup['graph']
-
-    if debug:
-        print '=== dumping $nav_config ==='
-        dump_json(nav_config, override=True)
-        print
-        print '=== showing $nav_setup.keys() ==='
-        print nav_setup.keys()
-        print
-        print '=== showing $nav_setup[position] ==='
-        dump_json(nav_setup['position'], override=True)
-
-    # create dicts $vertex_weight and $vertex_moves with keys $vertex
-    # '[{row},{column}]' is the format of $vertex
-    (vertex_weight, vertex_moves) = ({}, {})
-    for vertex in nav_graph['vertices']:
-        vertex_weight[vertex] = nav_graph['vertices'][vertex]['weight']
-        vertex_moves[vertex] = {}
-        if vertex in nav_graph['edges']: 
-            vertex_moves[vertex] = nav_graph['edges'][vertex]
-        
-    # create internal state for navigation
-    # ['pos'] -> current position, format is [{row},{column}]
-    # ['creds'] -> credits earned whilst playing current instance
-    # ['moves'] -> moves made whilst playing current instance
-    nav_state = {}
-    nav_state['pos'] = '[{},{}]'.format(
-        nav_setup['position']['row'], nav_setup['position']['column'] )
-    nav_state['creds'] = 0
-    nav_state['moves'] = 0
-    nav_state['creds_freqs'] = {}
-    
-    # methods to access the internal state and its characteristics
-    def pos(): 
-        """Returns current position of agent."""
-        return nav_state['pos']
-    def weight(vertex=None): 
-        """Returns weight of $vertex; current pos is default vertex."""
-        if vertex == None: vertex = pos()
-        return vertex_weight[vertex]
-    def n_creds():
-        """Returns number of discredits earned insofar."""
-        return nav_state['creds']
-    def n_moves():
-        """Returns number of moves earned insofar."""
-        return nav_state['moves']
-    def legal_moves(vertex=None): 
-        """Returns dict of possible moves from $vertex
-        where directions are keys and destinations are values;
-        current pos is default vertex."""
-        if vertex == None: vertex = pos()
-        return vertex_moves[vertex]
-    def dest(direction):  
-        """Returns would-be destination of moving in 
-        $direction from current pos."""
-        return legal_moves()[direction]
-    def avg_earned():
-        """Returns average credits earned per action in navigation."""
-        try: return 1.0*n_creds()/n_moves() 
-        except ZeroDivisionError: return 0
-    def real_avg_earned():
-        """Returns avg_earned, except also counts nav/enter() and nav/leave() actions."""
-        return 1.0*n_creds() / (n_moves()+2)
-
-    # methods to modify internal state
-    def set_pos(new_pos): 
-        """Set the position of the agent."""
-        nav_state['pos'] = new_pos
-    def incr_creds(delta=None):
-        """Increase earned credits by $delta."""
-        if delta == None: delta = weight()
-        if delta not in nav_state['creds_freqs']: nav_state['creds_freqs'][delta] = 0
-        nav_state['creds_freqs'][delta] += 1
-        nav_state['creds'] += delta
-    def incr_moves(delta=None):
-        """Increase number of moves made by $delta."""
-        if delta == None: delta = 1
-        nav_state['moves'] += delta
-    def play_nav_dir(d): 
-        """Update internal state and make a move in navigation."""
-        set_pos( legal_moves()[d] )
-        incr_creds()
-        incr_moves()
-        r = try_command('navigation lane direction=' + d)
-        if debug:
-            print 'moved to {}, available moves are {}'.format(pos(), legal_moves())
-            print 'earned {} discredits in {} moves playing nav'.format(n_creds(), n_moves())
-        return r
-    
-    # different methods to play navigation
-    def random_walk():
-        """Follow a path at random through the graph."""
-        while legal_moves() != {} :
-            #if 'break' == raw_input('press enter to continue navigation\n'): break
-            # move in random direction
-            direction = legal_moves().keys()[randint(0, len(legal_moves())-1)]
-            play_nav_dir(direction)
-    
-    def nav_greedy_best_first():
-        """implements greedy best first walk"""
-        while legal_moves() != {}:
-            direction = legal_moves().keys()[0]
-            for d in legal_moves():
-                if weight(legal_moves()[d]) > weight(legal_moves()[direction]): direction = d 
-            if debug:
-                print "will earn {} creds, options are {}".format(
-                    weight(legal_moves()[direction]), 
-                    tuple(weight(x) for x in legal_moves().values()))
-            play_nav_dir(direction)
-
-    def nav_iter_dfs():
-        """implements iterative depth first"""
-        frontier = []
-        explored = set()
-        
-
-    # play navigation
-    if debug:
-        print 'starting at {}, available moves are {}'.format(pos(), legal_moves())
-    nav_greedy_best_first()
-    if debug:
-        print('%.2f (really %.2f) credits earned on average %s' % 
-            (avg_earned(), real_avg_earned(),
-            tuple(sorted(nav_state['creds_freqs'].viewitems()))) )
-    #if '' == raw_input('finished, press enter to leave\n'): 
-    try_command('navigation leave')
-    ret = (n_creds(), n_moves(), avg_earned(), real_avg_earned())
-    print('%10d, %10d, %10.4f, %10.4f' % ret)
-    return ret
-
-def ai_nav_2():
     nav_inst = NavigationInstance(AGENT_TOKEN, debug=True)
     nav_agent = NavigationAgent(nav_inst, debug=True)
     nav_agent.nav_greedy_best_first()
@@ -363,10 +218,8 @@ class NavigationInstance:
 class NavigationState:
     """An immutable NavigationState for a NavigationInstance."""
     
-    # TODO: clean up commented code!
-
     def __init__(self, nav_inst, pos=None, creds=None, moves=None):
-        # NOTE: do NOT make NavigationState mutable, t
+        # NOTE: must implement deepcopy() to make NavState mutable
         #adding $nav_inst to NavState does not add significant overhead
         #because it just means that the NavState binds to an existing NavInst
         self.nav_inst = nav_inst
@@ -374,6 +227,11 @@ class NavigationState:
         self.creds = 0 if creds == None else creds
         self.moves = 0 if moves == None else moves
 
+    #def get_deepcopy(self):
+    #    """Return deepcopy of internal state."""
+    #    # MUST implement if NavState is made mutable
+    #    return self
+    
     def get_pos(self):
         """Returns current position."""
         return self.pos
@@ -410,33 +268,14 @@ class NavigationState:
     
     def get_avg_if_move(self, direction):
         """Returns what get_avg_creds() would if agent moves in $direction."""
-        try: return 1.0*(self.get_n_creds() + 
-            self.nav_inst.get_weight(self.get_dest_via(direction))
-            ) / (self.get_n_moves() + 1)
-        except ZeroDivisionError: return 0.0
+        #try: return 1.0*(self.get_n_creds() + 
+        #    self.nav_inst.get_weight(self.get_dest_via(direction))
+        #    ) / (self.get_n_moves() + 1)
+        #except ZeroDivisionError: return 0.0
+        return self.get_result(direction).get_avg_creds()
 
-    #def _set_incr_creds(self, delta=None):
-    #    """Increase earned credits by $delta."""
-    #    if delta == None: delta = get_weight()
-    #    if delta not in nav_state['creds_freqs']: self.creds_freqs[delta] = 0
-    #    self.creds_freqs[delta] += 1
-    #    self.creds += delta
-
-    #def _set_incr_moves(self, delta=None):
-    #    """Increase number of moves made by $delta."""
-    #    if delta == None: delta = 1
-    #    self.moves += delta
-    
-    def get_copy(self):
-        """Return copy of internal state."""
-        # TODO: actually implement !!!!!!!!!!!!!!!!!!!
-        return self
-    
     def get_result(self, direction):
-        """Move agent in $direction and update internal state accordingly."""
-        #self.pos = get_nexts()[direction]
-        #set_incr_creds()
-        #set_incr_moves()
+        """Return state resulting from moving in $direction."""
         dest = self.get_nexts()[direction]
         return NavigationState(
             self.nav_inst, 
@@ -445,7 +284,7 @@ class NavigationState:
             moves = self.get_n_moves() + 1)
 
     def log(self):
-        """Log the current NavigationState (55 chars long)."""
+        """Log $self (55 chars long)."""
         #print '='*55
         print 'pos %7s; avg creds is %5.2f (%3d creds in %2d moves)' % (
             self.get_pos(), self.get_avg_creds(), 
