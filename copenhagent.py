@@ -292,10 +292,10 @@ def old_ai_nav():
 def ai_nav_2():
     nav_inst = NavigationInstance(AGENT_TOKEN, debug=True)
     nav_agent = NavigationAgent(nav_inst, debug=True)
-    nav_agent.nav_random()
+    nav_agent.nav_greedy_best_first()
 
 class NavigationInstance:
-    """Controls an agent to play navigation."""
+    """immutable, saves a problem instance for a game of Navigation."""
     def __init__(self, agent_token, debug=False):
         """call nav/enter() and parse returned FullResponse"""
         
@@ -311,7 +311,7 @@ class NavigationInstance:
         nav_config = nav_setup['config']
         nav_graph = nav_setup['graph']
 
-        if debug:
+        if debug and False:
             print '=== dumping $nav_config ==='
             dump_json(nav_config, override=True)
             print
@@ -331,12 +331,6 @@ class NavigationInstance:
             if vertex in nav_graph['edges']: 
                 self.vertex_nexts[vertex] = nav_graph['edges'][vertex]
 
-        # create internal state for navigation
-        # ['pos'] -> current position, format is [{row},{column}]
-        # ['creds'] -> credits earned whilst playing current instance
-        # ['moves'] -> moves made whilst playing current instance
-        # ['creds_freqs'] -> record how often specific #s of credits are earned
-        #   exists primarily for statistical purposes
         self.init_vertex = '[{row},{column}]'.format(**nav_setup['position'])
     
     # methods to access the internal state and its characteristics
@@ -356,22 +350,23 @@ class NavigationInstance:
 
     def get_dest_from_via(self, vertex, direction):
         """Returns would-be dest of moving in $direction from $vertex."""
-        return get_nexts_from(vertex)['direction']
+        return self.get_nexts_from(vertex)[direction]
     
     def get_dir_to_dest(self, vertex, destination):
         """Returns direction to get from $vertex to $destination."""
-        nexts = get_nexts_from(vertex)
+        nexts = self.get_nexts_from(vertex)
         if destination in nexts.viewvalues():
             # iterate through: no worry about cost because len(nexts[dir]) <= 3
             for direction in nexts: 
                 if destination == nexts[direction]: return direction
 
 class NavigationState:
-    """Creates an immutable NavigationState for a NavigationInstance."""
+    """An immutable NavigationState for a NavigationInstance."""
     
     # TODO: clean up commented code!
 
     def __init__(self, nav_inst, pos=None, creds=None, moves=None):
+        # NOTE: do NOT make NavigationState mutable, t
         #adding $nav_inst to NavState does not add significant overhead
         #because it just means that the NavState binds to an existing NavInst
         self.nav_inst = nav_inst
@@ -409,8 +404,15 @@ class NavigationState:
         return self.nav_inst.get_dir_to_dest(self.pos, destination)
     
     def get_avg_creds(self):
-        """Returns average discredits earned per move by agent."""
-        try: return 1.0*get_n_creds()/get_n_moves()
+        """Returns average discredits earned per move."""
+        try: return 1.0*self.get_n_creds()/self.get_n_moves()
+        except ZeroDivisionError: return 0.0
+    
+    def get_avg_if_move(self, direction):
+        """Returns what get_avg_creds() would if agent moves in $direction."""
+        try: return 1.0*(self.get_n_creds() + 
+            self.nav_inst.get_weight(self.get_dest_via(direction))
+            ) / (self.get_n_moves() + 1)
         except ZeroDivisionError: return 0.0
 
     #def _set_incr_creds(self, delta=None):
@@ -435,9 +437,19 @@ class NavigationState:
         #self.pos = get_nexts()[direction]
         #set_incr_creds()
         #set_incr_moves()
-        return NavigationState(self.nav_inst, pos=self.get_nexts()[direction],
-            creds = self.get_n_creds(), moves = self.get_n_moves())
+        dest = self.get_nexts()[direction]
+        return NavigationState(
+            self.nav_inst, 
+            pos=dest,
+            creds = self.get_n_creds() + self.nav_inst.get_weight(dest),
+            moves = self.get_n_moves() + 1)
 
+    def log(self):
+        """Log the current NavigationState (55 chars long)."""
+        #print '='*55
+        print 'pos %7s; avg creds is %5.2f (%3d creds in %2d moves)' % (
+            self.get_pos(), self.get_avg_creds(), 
+            self.get_n_creds(), self.get_n_moves())
 
 class NavigationAgent:
     """NavigationAgent to play a NavigationInstance."""
@@ -446,29 +458,79 @@ class NavigationAgent:
         self.nav_inst = nav_inst
         self.nav_state = NavigationState(nav_inst) if nav_state == None else nav_state
         self.debug = debug
+    
+    def log_alg_start(self, alg_name):
+        """Log the start of a navigation algorithm."""
+        if self.debug: self.log_alg_msg(alg_name, 'START')
 
+    def log_alg_end(self, alg_name):
+        """Log the start of a navigation algorithm."""
+        if self.debug: self.log_alg_msg(alg_name, 'END')
+
+    def log_alg_msg(self, alg_name, msg):
+        """Log a message for a navigation algorithm."""
+        if not self.debug: return
+        log_msg = '[%s] <%s> ' % (alg_name, msg)
+        print log_msg + '='*(55 - len(log_msg))
+
+    def cmd_nav_moves(self, moves):
+        """Command agent to make a move in navigation."""
+        # if passed a $direction
+        if type(moves) in (str, unicode):
+            return try_command('navigation lane direction=%s' % moves)
+        # if passed list of moves
+        elif type(moves) is list:
+            # if moves are in the form of ($direction, $dest_vertex)
+            if type(moves[0]) is tuple:
+                # move in $direction
+                for move in moves: self.cmd_nav_moves(move[0])
+            # if moves are in the form of $direction
+            elif type(moves[0]) is str:
+                # move in $direction
+                for move in moves: self.cmd_nav_moves(move)
+    
+    def cmd_nav_leave(self):
+        """Command agent to leave navigation."""
+        return try_command('navigation leave')
+    
+    def prompt_cmd_nav_leave(self):
+        """Command agent to leave navigation, pause for user acknowledgment."""
+        if self.debug: raw_input('press enter to leave')
+        self.cmd_nav_leave()
+    
     def nav_random(self):
-        # NOTE: warning, this binds $state to $self.nav_state
-        state = self.nav_state
-        if self.debug: print (self.nav_state, state)
-        # state = self.nav_state.get_copy()
+        self.log_alg_start('random walk')
+        # NOTE: warning, this binds $s to $self.nav_state
+        # if NavigationState is changed to be mutable, $s must be a deepcopy()
+        s = self.nav_state
         moves = []
-        while state.get_nexts() != {} : 
-            if self.debug: print state.get_pos()
-            next_dirs = state.get_nexts()
+        while s.get_nexts() != {} : 
+            if self.debug: s.log()
+            next_dirs = s.get_nexts()
             direction = next_dirs.keys()[randint(0, len(next_dirs)-1)]
             # binds $state to a new NavState
-            state = state.get_result(direction)
-            moves.append((direction, state))
-        # TODO: cleanup *sorely* needed below, if only cleanup in the sense of 
-        #   organizing NavigationAgent
-        if self.debug:  
-            for move_state in moves:  print move_state[1].get_pos()
-        for move_state in moves:
-            try_command('navigation lane direction={}'.format(move_state[0]))
-        if '' == raw_input('press enter to leave'): 
-            try_command('navigation leave')
-        
+            s = s.get_result(direction)
+            moves.append((direction, s))
+        self.cmd_nav_moves(moves)
+        self.log_alg_end('random walk')
+        self.prompt_cmd_nav_leave()
+    
+    def nav_greedy_best_first(self):
+        self.log_alg_start('greedy best first')
+        # NOTE: warning, this binds $s to $self.nav_state
+        # if NavigationState is changed to be mutable, $s must be a deepcopy()
+        s = self.nav_state
+        moves = []
+        while s.get_nexts() != {} : 
+            if self.debug: s.log()
+            nexts = s.get_nexts()
+            direction = sorted(nexts.viewkeys(), key=s.get_avg_if_move)[0]
+            # binds $state to a new NavState
+            s = s.get_result(direction)
+            moves.append((direction, s))
+        self.cmd_nav_moves(moves)
+        self.log_alg_end('greedy best first')
+        self.prompt_cmd_nav_leave()
 
 ##### AI FUNCTIONS <END> #####
 
@@ -582,14 +644,8 @@ def try_command(usi):
     if len(usi_split) > 0 and usi_split[0].isdigit():
         # TODO: terminate loop early if any command while looping fails
         usi = usi[len(usi_split[0])+1:]
-        (n_creds, n_moves) = (0, 0)
         for i in range(int(usi_split[0])): 
             r = try_command(usi)   
-            if usi == 'navigation ai':
-                (n_creds, n_moves) = (n_creds + r[0], n_moves + r[1])
-        print '='*43
-        avg = 1.0*n_creds/n_moves if n_moves != 0 else 0
-        print '%.4f avg creds over %d moves (total creds %d)' % (avg, n_moves, n_creds)
         return
     
     # attempt command
@@ -642,7 +698,7 @@ def run_command(args):
                     print 'ERROR:', repr(args[param]),
                     print 'not recognized as legal value for', repr(param),
                     print list_opts(cmd, endpoint, param)
-                    get_flag &= False
+                    return
         # FAIL OUT if parameter verification fails
         else:
             print 'endpoint', endpoint_url, 'requires params with legal values: '
