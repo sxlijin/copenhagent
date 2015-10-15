@@ -87,6 +87,19 @@ class Queue:
     def __init__(self):
         """Initialize the queue."""
         self.queue = []
+    
+    def name(self):
+        """Returns string 'queue'."""
+        return 'queue'
+
+    def add(self, item, extend=None):
+        """Add $item to queue; if $item is iterable and $extend True, 
+        instead iterate through $item and add all items to queue."""
+        self.enqueue(item, extend)
+
+    def rm(self):
+        """Delete item from queue and return it."""
+        return self.dequeue()
 
     def enqueue(self, item, extend=None):
         """Enqueue $item; if $item is iterable and $extend True, instead,
@@ -118,6 +131,19 @@ class Stack:
     def __init__(self):
         """Initialize the stack."""
         self.stack = []
+    
+    def name(self):
+        """Returns string 'stack'."""
+        return 'stack'
+     
+    def add(self, item, extend=None):
+        """Add $item to stack; if $item is iterable and $extend True, 
+        instead iterate through $item and add all items to stack."""
+        self.push(item, extend)
+
+    def rm(self):
+        """Delete item from stack and return it."""
+        return self.pop()
 
     def push(self, item, extend=None):
         """Push $item; if $item is iterable and $extend True, instead,
@@ -232,7 +258,10 @@ def ai_nav():
     
     nav_inst = NavigationInstance(AGENT_TOKEN, debug=debug)
     nav_agent = NavigationAgent(nav_inst, debug=debug)
-    nav_agent.nav_breadth_first()
+    
+    alg_type = ('queue','stack')[1]
+    if alg_type == 'queue': nav_agent.nav_generic_breadth_first()
+    elif alg_type == 'stack': nav_agent.nav_generic_depth_first()
 
     end = time.clock()
     print_timetable('| %6.2f : nav ai %9s |' % (end, '<end>'))
@@ -546,22 +575,24 @@ class NavigationAgent:
     # NEEDS OPTIMIZATION
     # hits segfaults on any NavInst's outside of dis
     # potential optimizations:
-    #   don't enqueue edges if current best avg impossble to beat
-    def nav_breadth_first(self):
-        self.log_alg_start('breadth first')
+    #   don't add edges if current best avg impossble to beat
+    def nav_generic_first_by_struct(self, data_struct):
+        alg_names = {
+            'queue':'generic breadth first', 
+            'stack':'generic depth first'
+        }
+        alg_name = alg_names[data_struct.name()]
+        self.log_alg_start(alg_name)
         
         # NavState currently tracks its ancestor
         # maybe a more efficient way to represent the directed edges?
         
-        # track the current state
         # track explored vertices as { $vertex : ($avg_creds, NavEdge) }
         # track the best path as ($avg_creds, NavEdge)
         s = self.nav_state
-        frontier = Queue()
-        #frontier.enqueue((None, s, None))
-        frontier.enqueue(s)
+        frontier = data_struct
+        frontier.add(s)
         explored = {}
-        #best_path = (0.0, (None, s, None))
         best_end = s
 
         seed = s.nav_inst.get_seed()
@@ -579,7 +610,7 @@ class NavigationAgent:
         #   use unexplored paths as a proxy therefor
         while not frontier.is_empty():
             # $s is the current NavState being expanded
-            s = frontier.dequeue()
+            s = frontier.rm()
 
             #if s.get_weight() < seed:
             #    print "skip %s %s < %s" % (s.get_pos(), s.get_weight(), seed)
@@ -589,13 +620,14 @@ class NavigationAgent:
             #if self.debug: print id(s)
             # add potential next moves to the frontier
             for result in s.get_results().viewvalues():
-                if result.get_weight() >= seed:  frontier.enqueue(result)
-                elif self.debug:    print 'not enqueueing %s' % result
+                # never add a vertex with weight < seed to the frontier
+                if result.get_weight() >= seed:  frontier.add(result)
+                elif self.debug:    print 'not adding %s' % result
     
             # if current NavState has not yet been explored
             #       OR has been explored & NavEdge is better path
             # use s.get_pos() as key bc can have different $s at same vertex
-            if (s.get_pos() not in explored() 
+            if (s.get_pos() not in explored 
                     or s.get_avg_creds() > explored[s.get_pos()]['avg']): 
 
                 # overwrite or create item with NavEdge in value 
@@ -622,9 +654,16 @@ class NavigationAgent:
             self.cmd_nav_moves(s.get_prev_dir())
             #if self.debug: print '>>> %7s >>> %7s via %5s' % (s.get_edge_to())
 
-        self.log_alg_end('breadth first')
+        self.log_alg_end(alg_name)
         self.prompt_cmd_nav_leave()
 
+    def nav_generic_breadth_first(self):
+        """Runs a breadth first search using a generic search with a queue."""
+        self.nav_generic_first_by_struct(Queue())
+
+    def nav_generic_depth_first(self):
+        """Runs a depth first search using a generic search with a stack."""
+        self.nav_generic_first_by_struct(Stack())
 
 ##### AI FUNCTIONS <END> #####
 
