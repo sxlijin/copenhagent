@@ -78,6 +78,77 @@ def set_agent(token):
 
 
 
+##### DATA STRUCTURES <START> #####
+
+class Queue:
+    """Implements a standard FIFO queue."""
+
+    def __init__(self):
+        """Initialize the queue."""
+        self.queue = []
+
+    def enqueue(self, item, extend=None):
+        """Enqueue $item; if $item is iterable and $extend True, instead,
+        iterate through $item and add all items to $self.queue."""
+        if extend == None: self.queue.append(item)
+        elif extend == True: self.enqueue_extend(item)
+    
+    def enqueue_extend(self, item):
+        """Iterate through $item and enqueue all."""
+        try:
+            self.queue.extend(item)
+        except TypeError:
+            print "Queue.enqueue_extend() called on non-iterable."
+    
+    def dequeue(self):
+        """Dequeue and return; raises IndexError if queue is empty."""
+        if self.is_empty():
+            raise IndexError('queue is empty')
+        else:   
+            return self.queue.pop(0)
+
+    def is_empty(self):
+        """Returns True if queue is empty."""
+        return len(self.queue) == 0
+
+class Stack:
+    """Implements a standard LIFO stack."""
+
+    def __init__(self):
+        """Initialize the stack."""
+        self.stack = []
+
+    def push(self, item, extend=None):
+        """Push $item; if $item is iterable and $extend True, instead,
+        iterate through $item and add all items to $self.stack."""
+        if extend == None: self.stack.append(item)
+        elif extend == True: self.push_extend(item)
+    
+    def push_extend(self, item):
+        """Iterate through $item and enstack all."""
+        try:
+            self.stack.extend(item)
+        except TypeError:
+            print "Queue.enstack_extend() called on non-iterable."
+    
+    def pop(self):
+        """Destack and return; raises IndexError if stack is empty."""
+        if self.is_empty():
+            raise IndexError('stack is empty')
+        else:   
+            return self.stack.pop()
+
+    def is_empty(self):
+        """Returns True if stack is empty."""
+        return len(self.stack) == 0
+
+
+##### DATA STRUCTURES <END> #####
+
+
+
+
+
 ##### AI FUNCTIONS <START> #####
 
 
@@ -147,7 +218,7 @@ def program():
 def ai_nav():
     nav_inst = NavigationInstance(AGENT_TOKEN, debug=True)
     nav_agent = NavigationAgent(nav_inst, debug=True)
-    nav_agent.nav_greedy_best_first()
+    nav_agent.nav_breadth_first()
 
 class NavigationInstance:
     """immutable, saves a problem instance for a game of Navigation."""
@@ -226,6 +297,9 @@ class NavigationState:
         self.pos = self.nav_inst.get_init_pos() if pos == None else pos
         self.creds = 0 if creds == None else creds
         self.moves = 0 if moves == None else moves
+ 
+    def __str__(self):
+        return self.get_pos()
 
     #def get_deepcopy(self):
     #    """Return deepcopy of internal state."""
@@ -244,14 +318,19 @@ class NavigationState:
         """Returns number of moves made."""
         return self.moves
     
-    def get_weight(self):
-        """Returns weight corresponding to $self.pos."""
-        return self.nav_inst.get_weight(self.pos)
+    def get_weight(self, vertex=None):
+        """Returns weight of $vertex if specified, else $self.pos."""
+        if vertex == None: return self.nav_inst.get_weight(self.pos)
+        else: return self.nav_inst.get_weight(vertex)
 
     def get_nexts(self):
         """Return dict of possible moves from $self.pos
         where directions are keys and destinations are values."""
         return self.nav_inst.get_nexts_from(self.pos)
+    
+    def get_edges(self):
+        """Return directed edges from $self.pos as n-tuple of 3-tuples."""
+        return tuple((self, self.get_result(d), d) for d in self.get_nexts())
     
     def get_dest_via(self, direction):
         """Return would-be dest of moving in $direction from $self.pos"""
@@ -298,6 +377,9 @@ class NavigationAgent:
         self.nav_state = NavigationState(nav_inst) if nav_state == None else nav_state
         self.debug = debug
     
+    def __str__(self):
+        return self.get_pos()
+    
     def log_alg_start(self, alg_name):
         """Log the start of a navigation algorithm."""
         if self.debug: self.log_alg_msg(alg_name, 'START')
@@ -314,6 +396,7 @@ class NavigationAgent:
 
     def cmd_nav_moves(self, moves):
         """Command agent to make a move in navigation."""
+        print moves
         # if passed a $direction
         if type(moves) in (str, unicode):
             return try_command('navigation lane direction=%s' % moves)
@@ -363,13 +446,156 @@ class NavigationAgent:
         while s.get_nexts() != {} : 
             if self.debug: s.log()
             nexts = s.get_nexts()
-            direction = sorted(nexts.viewkeys(), key=s.get_avg_if_move)[0]
-            # binds $state to a new NavState
+            # sorted() sorts in ascending order, so grab last element
+            direction = sorted(nexts.viewkeys(), key=s.get_avg_if_move)[-1]
+            # binds $s to a new NavState
             s = s.get_result(direction)
             moves.append((direction, s))
         self.cmd_nav_moves(moves)
         self.log_alg_end('greedy best first')
         self.prompt_cmd_nav_leave()
+
+    # generic tree search algorithm:
+    # 
+    # walk = initial_state
+    # frontier = some_data_struct //queue, stack, priority queue, heap
+    # 
+    # while (goal not met) or (frontier not empty):
+    #   frontier.insertset(walk.nexts)
+    #   walk <- frontier.next
+    # 
+    # if (goal met)
+    #   return goal met
+    # 
+    # =================================================================
+    # 
+    # // maybe explored should be a 3-tuple? directed edges and avg creds by following thru
+    # explored = {} 
+    # // keys   : explored $vertex
+    # // values : ($avg, $path) where $avg is avg creds earned on $path to get to $vertex
+    # // unique (key, value) pairs because you overwrite value if new $avg is better
+    # 
+    # paths = [] ## want each path to be ($avg_creds, $moves) where $moves is list of dirs
+    # // is this one even necessary?
+    #
+    # walk = initial_state
+    # frontier_edges = some_data_struct (queue, stack, priority queue)
+    # frontier_edges.insertset(initial_state.next_edges)
+    # 
+    # while frontier not empty:
+    #   walk <- frontier_edges.next.tail
+    #   frontier_edges.insertset(walk.next_edges)
+    #
+    #   // if $walk has already been explored:
+    #   if walk is in explored:
+    #       //overwrite path to walk if new path has better $avg creds
+    #       if new_path_to_walk better than explored_path_to_walk:
+    #           explored_path_to_walk <- new_path_to_walk
+    #       else:
+    #           discard new_path_to_walk
+    #   // if $walk hasn't been explored:
+    #   else:
+    #       //mark walk as explored
+    #       explored.insert(path_to_walk)
+    #
+
+    # potential optimizations:
+    #   don't enqueue edges if current best avg impossble to beat
+    def nav_breadth_first(self):
+        self.log_alg_start('breadth first')
+        
+        # perhaps create a NavEdge class to represent the directed edges?
+        # directed edges currently represented as 
+        # (vertex prev, vertex curr, direction prev-to-curr)
+        
+        # start tracking the state
+        s = self.nav_state
+
+        # start tracking the edges on the frontier
+        # use None as the prev for initial state as a placeholder
+        frontier_edges = Queue()
+        frontier_edges.enqueue((None, s, None))
+        
+        # start tracking explored vertices
+        #   and best path to each vertex
+        explored = {}
+        #explored[s.get_pos()] = {'avg':s.get_avg_creds(), 'edge':(None, s, None)}
+        #for i in explored.viewitems(): print i
+        
+        # start tracking the best path
+        # to optimize, will also need to track # moves
+        best_path = (0.0, (None, s, None))
+        
+        # standard search() will use while not goal_reached()
+        # not possible here: there is no goal test for NavStates; you can only
+        #   choose the best of the many NavStates that are generated
+        #   e.g., goal NavState might have nonempty set of available moves
+        #           because continuing to move would lower the average
+        # -> optimize by determining when an average cannot be beat
+        # ====> use NavState.get_n_moves()
+        while not frontier_edges.is_empty():
+            # $e is the NavEdge leading to current NavState
+            # $s is the current NavState being expanded
+            e = frontier_edges.dequeue()
+            s = e[1]
+            
+            # add potential next moves to the frontier
+            frontier_edges.enqueue(s.get_edges(), extend=True)
+            #if self.debug: s.log()
+    
+            # if current NavState has not yet been explored
+            #       OR has been explored & NavEdge is better path
+            if (s.get_pos() not in explored 
+                    or s.get_avg_creds() > explored[s.get_pos()]['avg']): 
+
+                # overwrite or create item with NavEdge in value 
+                explored[s.get_pos()] = {'avg':s.get_avg_creds(), 'edge':e}
+
+                # if current NavEdge is better than current best path
+                if s.get_avg_creds() > best_path[0]: 
+                    best_path = (s.get_avg_creds(), e)
+        
+
+        #    set_flag = False
+        #    
+        #    if s.get_pos() in explored:
+        #        if s.get_avg_creds() > explored[s.get_pos()]['avg']: 
+        #            set_flag = True
+        #    else: set_flag = True
+
+        #    if set_flag:
+        #        explored[s.get_pos()] = {'avg':s.get_avg_creds(), 'edge':e}
+        #        if s.get_avg_creds() > best_path[0]: 
+        #            best_path = (s.get_avg_creds(), e)
+        
+        # log last edge in best path
+        if self.debug: best_path[1][1].log()
+        
+        # need to generate best path from stored data
+        # would tracking entire paths instead of last edges be too costly?
+        # work backwards until prev of curr NavState is None
+        #   since the prev placeholder for initial state was None
+        hist = Stack()
+        e = best_path[1]
+        while None != e[0]:
+            hist.push(e)
+            e = explored[e[0].get_pos()]['edge']
+
+        #moves = []
+
+        while not hist.is_empty():
+            e = hist.pop()
+            #moves.append('from %7s to %7s via %5s' % (e[0].get_pos(), e[1].get_pos(), e[2])) 
+            #self.cmd_nav_moves(e[2])
+            if self.debug: # print (e[0].get_pos(), e[1].get_pos(), e[2])
+                print '>>> %7s >>> %7s via %5s' % e
+            #        e[0].get_pos(), e[1].get_pos(), e[2]  )
+
+        #self.cmd_nav_moves(moves)
+
+        self.log_alg_end('breadth first')
+        self.prompt_cmd_nav_leave()
+
 
 ##### AI FUNCTIONS <END> #####
 
