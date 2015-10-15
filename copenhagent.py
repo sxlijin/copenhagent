@@ -396,7 +396,6 @@ class NavigationAgent:
 
     def cmd_nav_moves(self, moves):
         """Command agent to make a move in navigation."""
-        print moves
         # if passed a $direction
         if type(moves) in (str, unicode):
             return try_command('navigation lane direction=%s' % moves)
