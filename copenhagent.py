@@ -576,6 +576,8 @@ class NavigationAgent:
     # hits segfaults on any NavInst's outside of dis
     # potential optimizations:
     #   don't add edges if current best avg impossble to beat
+    #   try doing a custom version using a priority queue?
+    #       python best bet is using a heapq
     def nav_generic_first_by_struct(self, data_struct):
         alg_names = {
             'queue':'generic breadth first', 
