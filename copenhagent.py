@@ -543,15 +543,15 @@ class NavigationAgent:
     #       explored.insert(path_to_walk)
     #
 
+    # NEEDS OPTIMIZATION
+    # hits segfaults on any NavInst's outside of dis
     # potential optimizations:
     #   don't enqueue edges if current best avg impossble to beat
     def nav_breadth_first(self):
         self.log_alg_start('breadth first')
         
-        # perhaps create a NavEdge class to represent the directed edges?
-        # directed edges currently represented as 
-        # (vertex prev, vertex curr, direction prev-to-curr)
-        # alternative: allow NavState to track the preceding NavState
+        # NavState currently tracks its ancestor
+        # maybe a more efficient way to represent the directed edges?
         
         # track the current state
         # track explored vertices as { $vertex : ($avg_creds, NavEdge) }
@@ -588,9 +588,6 @@ class NavigationAgent:
             #if self.debug: s.log()
             #if self.debug: print id(s)
             # add potential next moves to the frontier
-            #frontier.enqueue(
-            #    [x for x in s.get_results().viewvalues() if x.get_weight() >= seed], 
-            #    extend=True)
             for result in s.get_results().viewvalues():
                 if result.get_weight() >= seed:  frontier.enqueue(result)
                 elif self.debug:    print 'not enqueueing %s' % result
@@ -598,12 +595,11 @@ class NavigationAgent:
             # if current NavState has not yet been explored
             #       OR has been explored & NavEdge is better path
             # use s.get_pos() as key bc can have different $s at same vertex
-            if (s.get_pos() not in explored 
+            if (s.get_pos() not in explored() 
                     or s.get_avg_creds() > explored[s.get_pos()]['avg']): 
 
                 # overwrite or create item with NavEdge in value 
                 explored[s.get_pos()] = {'avg':s.get_avg_creds()}
-
 
                 # if current NavEdge is better than current best path
                 if s.get_avg_creds() > best_end.get_avg_creds(): best_end = s
