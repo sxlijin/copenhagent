@@ -507,32 +507,30 @@ class NavigationAgent:
         # perhaps create a NavEdge class to represent the directed edges?
         # directed edges currently represented as 
         # (vertex prev, vertex curr, direction prev-to-curr)
+        # alternative: allow NavState to track the preceding NavState
         
-        # start tracking the state
+        # track the current state
+        # track NavEdges on the frontier
+        #   treat the NavEdge to $initial_state as from None to $s via None
+        # track explored vertices as { $vertex : ($avg_creds, NavEdge) }
+        # track the best path as ($avg_creds, NavEdge)
         s = self.nav_state
-
-        # start tracking the edges on the frontier
-        # use None as the prev for initial state as a placeholder
         frontier_edges = Queue()
         frontier_edges.enqueue((None, s, None))
-        
-        # start tracking explored vertices
-        #   and best path to each vertex
         explored = {}
-        #explored[s.get_pos()] = {'avg':s.get_avg_creds(), 'edge':(None, s, None)}
-        #for i in explored.viewitems(): print i
-        
-        # start tracking the best path
-        # to optimize, will also need to track # moves
         best_path = (0.0, (None, s, None))
-        
-        # standard search() will use while not goal_reached()
+
+        # standard searches will use while not goal_reached()
         # not possible here: there is no goal test for NavStates; you can only
         #   choose the best of the many NavStates that are generated
         #   e.g., goal NavState might have nonempty set of available moves
         #           because continuing to move would lower the average
+        #
         # -> optimize by determining when an average cannot be beat
         # ====> use NavState.get_n_moves()
+        #
+        # keep going if you can find a better average
+        #   use unexplored paths as a proxy therefor
         while not frontier_edges.is_empty():
             # $e is the NavEdge leading to current NavState
             # $s is the current NavState being expanded
@@ -555,43 +553,24 @@ class NavigationAgent:
                 if s.get_avg_creds() > best_path[0]: 
                     best_path = (s.get_avg_creds(), e)
         
-
-        #    set_flag = False
-        #    
-        #    if s.get_pos() in explored:
-        #        if s.get_avg_creds() > explored[s.get_pos()]['avg']: 
-        #            set_flag = True
-        #    else: set_flag = True
-
-        #    if set_flag:
-        #        explored[s.get_pos()] = {'avg':s.get_avg_creds(), 'edge':e}
-        #        if s.get_avg_creds() > best_path[0]: 
-        #            best_path = (s.get_avg_creds(), e)
-        
         # log last edge in best path
         if self.debug: best_path[1][1].log()
         
-        # need to generate best path from stored data
-        # would tracking entire paths instead of last edges be too costly?
-        # work backwards until prev of curr NavState is None
-        #   since the prev placeholder for initial state was None
+        # regenerate best path from its terminal edge
+        #   would tracking entire paths instead of last edges be too costly?
+        #
+        # work backwards until NavState.prev == (initial_state.prev = None)
         hist = Stack()
         e = best_path[1]
         while None != e[0]:
             hist.push(e)
             e = explored[e[0].get_pos()]['edge']
 
-        #moves = []
-
+        # follow the best path forward
         while not hist.is_empty():
             e = hist.pop()
-            #moves.append('from %7s to %7s via %5s' % (e[0].get_pos(), e[1].get_pos(), e[2])) 
-            #self.cmd_nav_moves(e[2])
-            if self.debug: # print (e[0].get_pos(), e[1].get_pos(), e[2])
-                print '>>> %7s >>> %7s via %5s' % e
-            #        e[0].get_pos(), e[1].get_pos(), e[2]  )
-
-        #self.cmd_nav_moves(moves)
+            self.cmd_nav_moves(e[2])
+            if self.debug: print '>>> %7s >>> %7s via %5s' % e
 
         self.log_alg_end('breadth first')
         self.prompt_cmd_nav_leave()
