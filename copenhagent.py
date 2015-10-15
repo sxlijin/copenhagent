@@ -220,15 +220,26 @@ def ai_nav():
     debug=False
     #debug=True
     
+    def print_timetable(text):
+        print_flag = True
+        if print_flag:  print text
+    
+    border = '%s:%s' % ('='*9, '='*19)
+
+    print_timetable(border)
     start = time.clock()
+    print_timetable('| %6.2f : nav ai %9s |' % (start, '<start>'))
     
     nav_inst = NavigationInstance(AGENT_TOKEN, debug=debug)
     nav_agent = NavigationAgent(nav_inst, debug=debug)
     nav_agent.nav_breadth_first()
 
     end = time.clock()
+    print_timetable('| %6.2f : nav ai %9s |' % (end, '<end>'))
+    print_timetable(border)
+    print_timetable('| %6.2f : nav ai %9s |' % (end-start, '<runtime>'))
+    print_timetable(border)
 
-    print  (end-start)/1000
 
 class NavigationInstance:
     """immutable, saves a problem instance for a game of Navigation."""
@@ -246,6 +257,9 @@ class NavigationInstance:
         nav_setup = r.json()['state']['navigation'][AGENT_TOKEN]
         nav_config = nav_setup['config']
         nav_graph = nav_setup['graph']
+        
+        # store $seed, which is the default weight for nav vertices
+        self.seed = nav_config['seed']
 
         if debug and False:
             print '=== dumping $nav_config ==='
@@ -273,6 +287,10 @@ class NavigationInstance:
     def get_init_pos(self): 
         """Returns initial position of agent as '[r, c]'."""
         return self.init_vertex
+
+    def get_seed(self):
+        """Return the seed for the NavInst."""
+        return self.seed
 
     def get_weight(self, vertex): 
         """Returns weight of $vertex."""
@@ -344,9 +362,9 @@ class NavigationState:
         where directions are keys and destinations are values."""
         return self.nav_inst.get_nexts_from(self.pos)
  
-    def get_edges(self):
-        """Return directed edges from $self.pos as n-tuple of 3-tuples."""
-        return tuple((self, self.get_result(d), d) for d in self.get_nexts())
+    def get_edge_to(self):
+        """Return directed edge to $self.pos with dir as 3-tuple."""
+        return tuple(s.get_prev(), s, s.get_prev_dir())
     
     def get_dest_via(self, direction):
         """Return would-be dest of moving in $direction from $self.pos"""
@@ -536,18 +554,18 @@ class NavigationAgent:
         # alternative: allow NavState to track the preceding NavState
         
         # track the current state
-        # track NavEdges on the frontier
-        #   treat the NavEdge to $initial_state as from None to $s via None
         # track explored vertices as { $vertex : ($avg_creds, NavEdge) }
         # track the best path as ($avg_creds, NavEdge)
         s = self.nav_state
-        frontier_edges = Queue()
-        #frontier_edges.enqueue((None, s, None))
-        frontier_edges.enqueue(s)
+        frontier = Queue()
+        #frontier.enqueue((None, s, None))
+        frontier.enqueue(s)
         explored = {}
         #best_path = (0.0, (None, s, None))
         best_end = s
 
+        seed = s.nav_inst.get_seed()
+        
         # standard searches will use while not goal_reached()
         # not possible here: there is no goal test for NavStates; you can only
         #   choose the best of the many NavStates that are generated
@@ -559,19 +577,23 @@ class NavigationAgent:
         #
         # keep going if you can find a better average
         #   use unexplored paths as a proxy therefor
-        while not frontier_edges.is_empty():
-            # $e is the NavEdge leading to current NavState
+        while not frontier.is_empty():
             # $s is the current NavState being expanded
-            #e = frontier_edges.dequeue()
-            #s = e[1]
-            s = frontier_edges.dequeue()
-            #print id(s), type(s), s
+            s = frontier.dequeue()
+
+            #if s.get_weight() < seed:
+            #    print "skip %s %s < %s" % (s.get_pos(), s.get_weight(), seed)
+            #    continue
+
             #if self.debug: s.log()
             #if self.debug: print id(s)
-
             # add potential next moves to the frontier
-            #frontier_edges.enqueue(s.get_edges(), extend=True)
-            frontier_edges.enqueue(s.get_results().viewvalues(), extend=True)
+            #frontier.enqueue(
+            #    [x for x in s.get_results().viewvalues() if x.get_weight() >= seed], 
+            #    extend=True)
+            for result in s.get_results().viewvalues():
+                if result.get_weight() >= seed:  frontier.enqueue(result)
+                elif self.debug:    print 'not enqueueing %s' % result
     
             # if current NavState has not yet been explored
             #       OR has been explored & NavEdge is better path
@@ -580,28 +602,18 @@ class NavigationAgent:
                     or s.get_avg_creds() > explored[s.get_pos()]['avg']): 
 
                 # overwrite or create item with NavEdge in value 
-                #explored[s.get_pos()] = {'avg':s.get_avg_creds(), 'edge':e}
                 explored[s.get_pos()] = {'avg':s.get_avg_creds()}
 
 
                 # if current NavEdge is better than current best path
-                #if s.get_avg_creds() > best_path[0]: 
-                #    best_path = (s.get_avg_creds(), e)
                 if s.get_avg_creds() > best_end.get_avg_creds(): best_end = s
         
         # log last edge in best path
-        #if self.debug: best_path[1][1].log()
         if self.debug: best_end.log()
         
         # regenerate best path from its terminal edge
-        #   would tracking entire paths instead of last edges be too costly?
-        #
         # work backwards until NavState.prev == (initial_state.prev = None)
         hist = Stack()
-        #e = best_path[1]
-        #while None != e[0]:
-            #hist.push(e)
-            #e = explored[e[0].get_pos()]['edge']
         s = best_end
         while None != s.get_prev():
             hist.push(s)
@@ -609,12 +621,10 @@ class NavigationAgent:
 
         # follow the best path forward
         while not hist.is_empty():
-            #e = hist.pop()
             s = hist.pop()
             #if self.debug: print s.get_prev_dir()
             self.cmd_nav_moves(s.get_prev_dir())
-            #if self.debug: print '>>> %7s >>> %7s via %5s' % e
-            if self.debug: print '>>> %7s >>> %7s via %5s' % (s.get_prev(), s, s.get_prev_dir())
+            #if self.debug: print '>>> %7s >>> %7s via %5s' % (s.get_edge_to())
 
         self.log_alg_end('breadth first')
         self.prompt_cmd_nav_leave()
