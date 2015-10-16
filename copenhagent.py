@@ -2,8 +2,10 @@
 
 import readline, sys, argparse
 import requests, json
-from time import clock as time
+import time
 from random import randint
+
+import structs, navigation
 
 ##### GLOBAL VARIABLES <START> #####
 
@@ -117,12 +119,18 @@ class Shell:
             #   also reformats $argv if necessary
             if argv[0].isdigit():
                 n = int(argv.pop(0))
-                if self.verify_api_command(argv):
-                    for i in range(n): r = do_api_command(argv)
-                    return r
-            if self.verify_api_command(argv):  return self.do_api_command(argv)
-            else:
-                return self.run_custom_program(argstr)
+                # TODO: adjust so that it doesn't repeat a bad command n times
+                #if self.verify_api_command(argv):
+                #    for i in range(n): r = self.try_command(argv)
+                #    return r
+                #else: return None
+                for i in range(n): r = self.try_command(argv)
+                return r
+            try:
+                self.run_custom_program(argstr)
+            except ValueError:
+                if self.verify_api_command(argv):  
+                    return self.do_api_command(argv)
         except IndexError:
             return None
 
@@ -213,16 +221,19 @@ class Shell:
         )
         
     def run_custom_program(self, argstr):
+        is_custom = True
+
         argv = argstr.split()
         if argv[0] == 'copenhagent':
-            if len(argv[2:]) != 1: return None
+            if len(argv[2:]) != 1: is_custom = False
             else:
                 # 'copenhagent new _____'
                 if argv[1] == 'new':  self.set_agent(new=argv[2])
                 # 'copenhagent agent _____'
                 elif argv[1] == 'agent':  self.set_agent(token=argv[2])
-        return None
-    
+        if argstr == 'navigation ai':  ai_nav(self)
+        elif False: pass
+        else: raise ValueError('not a custom program')
 
 class Agent:
     """Controls an agent in the copenhagent environment."""
@@ -273,9 +284,9 @@ class Agent:
 
     def update_with(self, r):
         """Take a <requests> object and update the internal state."""
+        if r.status_code == 401 and r.json()['code'] == 'Unauthorized':
+            raise ValueError(r.json()['message'])
         r = r.json()
-        if (r['code'], r['statusCode']) == ('Unauthorized', 401):
-            raise ValueError(r['message'])
         if 'agentToken' in r:
             self.update_with_agent_token(r['agentToken'])
         if 'action' in r:
@@ -299,7 +310,7 @@ class Agent:
     
     def poll_api(self, api_url):
         """Request $api_url with $self.agent_token specified in header."""
-        print 'requesting %s with agentToken %s' %(api_url, self.agent_token)
+        #print 'requesting %s with agentToken %s' %(api_url, self.agent_token)
         r = requests.get(api_url, headers=self.get_header())
         self.update_with(r)
         return r
@@ -308,7 +319,7 @@ class Agent:
 
 ### NAVIGATION
 
-def ai_nav():
+def ai_nav(shell):
     debug=False
     #debug=True
     
@@ -316,22 +327,23 @@ def ai_nav():
         print_flag = True
         if print_flag:  print text
     
-    border = '%s:%s' % ('='*9, '='*19)
+    border = '%s:%s' % ('='*11, '='*19)
+    timetable_entry = '| %8.4f : nav ai %9s |'  
 
     print_timetable(border)
     start = time.clock()
-    print_timetable('| %6.2f : nav ai %9s |' % (start, '<start>'))
+    print_timetable(timetable_entry % (start, '<start>'))
     
-    nav_inst = NavigationInstance(AGENT_TOKEN, debug=debug)
-    nav_agent = NavigationAgent(nav_inst, debug=debug)
+    nav_inst = navigation.NavigationInstance(shell, debug=debug)
+    nav_agent = navigation.NavigationAgent(nav_inst, debug=debug)
     
-    data_struct = (Queue(), Stack())[1]
+    data_struct = (structs.Queue(), structs.Stack())[1]
     nav_agent.nav_generic_first_by_struct(data_struct)
 
     end = time.clock()
-    print_timetable('| %6.2f : nav ai %9s |' % (end, '<end>'))
+    print_timetable(timetable_entry % (end, '<end>'))
     print_timetable(border)
-    print_timetable('| %6.2f : nav ai %9s |' % (end-start, '<runtime>'))
+    print_timetable(timetable_entry % (end-start, '<runtime>'))
     print_timetable(border)
 
     nav_agent.prompt_cmd_nav_leave()

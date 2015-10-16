@@ -1,19 +1,21 @@
 #! /usr/bin/env python
 
+import structs
+
 class NavigationInstance:
     """immutable, saves a problem instance for a game of Navigation."""
-    def __init__(self, agent_token, debug=False):
+    def __init__(self, shell, debug=False):
         """call nav/enter() and parse returned FullResponse"""
         
         self.debug = debug
+        self.token = shell.active_agent.agent_token
+
+        self.try_command = shell.try_command
         
-        # TODO: convert this entire thing to a class
-        # store the agent token and header
-        self.h = {'agentToken':agent_token}
-        r = try_command('navigation enter')#, h=self.h)
+        r = self.try_command('navigation enter')
 
         # begin parsing the FullResponse
-        nav_setup = r.json()['state']['navigation'][AGENT_TOKEN]
+        nav_setup = r.json()['state']['navigation'][self.token]
         nav_config = nav_setup['config']
         nav_graph = nav_setup['graph']
         
@@ -202,7 +204,8 @@ class NavigationAgent:
         """Command agent to make a move in navigation."""
         # if passed a $direction
         if type(moves) in (str, unicode):
-            return try_command('navigation lane direction=%s' % moves)
+            return self.nav_inst.try_command(
+                'navigation lane direction=%s' % moves)
         # if passed list of moves
         elif type(moves) is list:
             # if moves are in the form of ($direction, $dest_vertex)
@@ -216,7 +219,7 @@ class NavigationAgent:
     
     def cmd_nav_leave(self):
         """Command agent to leave navigation."""
-        return try_command('navigation leave')
+        return self.nav_inst.try_command('navigation leave')
     
     def prompt_cmd_nav_leave(self):
         """Command agent to leave navigation, pause for user acknowledgment."""
@@ -310,8 +313,8 @@ class NavigationAgent:
     #       python best bet is using a heapq
     def nav_generic_first_by_struct(self, data_struct):
         alg_names = {
-            'queue':'generic breadth first', 
-            'stack':'generic depth first'
+            'Queue':'generic breadth first', 
+            'Stack':'generic depth first'
         }
         alg_name = alg_names[data_struct.name()]
         self.log_alg_start(alg_name)
@@ -380,7 +383,7 @@ class NavigationAgent:
         
         # regenerate best path from its terminal edge
         # work backwards until NavState.prev == (initial_state.prev = None)
-        hist = Stack()
+        hist = structs.Stack()
         s = best_end
         while None != s.get_prev():
             hist.push(s)

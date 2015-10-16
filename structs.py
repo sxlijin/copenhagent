@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 
-class GenericStruct:
+class GenericStruct(object):
     """Implements a generic data structure based on a list."""
     
     def __init__(self):
@@ -29,7 +29,7 @@ class Queue(GenericStruct):
         Initialize the queue.
         Also binds self.add() and self.rm() to queue insertion and deletion.
         """
-        GenericStruct.__init__(self)
+        super(Queue, self).__init__()
         self._queue = self._generic
         self._name = 'Queue'
         (self.add, self.rm) = (self.enqueue, self.dequeue)
@@ -54,7 +54,7 @@ class Queue(GenericStruct):
             return self._queue.pop(0)
 
 
-class Stack:
+class Stack(GenericStruct):
     """Implements a standard LIFO stack."""
 
     def __init__(self):
@@ -62,8 +62,8 @@ class Stack:
         Initialize the stack.
         Also binds self.add() and self.rm() to stack insertion and deletion.
         """
-        GenericStruct.__init__(self)
-        self._queue = self._generic
+        super(Stack, self).__init__()
+        self._stack = self._generic
         self._name = 'Stack'
         (self.add, self.rm) = (self.push, self.pop)
     
