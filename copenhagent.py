@@ -39,8 +39,7 @@ def list_reprs(iterable):
     return ', '.join([repr(elem) for elem in iterable])
 
 def log_error(e):
-    if isinstance(e, Exception):
-        e = (str(type(e))[18:-7], str(e).lower())
+    if isinstance(e, Exception): e = (type(e).__name__, e.message.lower())
     print '[ ERROR: %12.12s ] %s' % e
     
 class Shell:
@@ -337,7 +336,7 @@ def ai_nav(shell):
     nav_inst = navigation.NavigationInstance(shell, debug=debug)
     nav_agent = navigation.NavigationAgent(nav_inst, debug=debug)
     
-    data_struct = (structs.Queue(), structs.Stack())[1]
+    data_struct = (structs.Queue(), structs.Stack())[0]
     nav_agent.nav_generic_first_by_struct(data_struct)
 
     end = time.clock()
