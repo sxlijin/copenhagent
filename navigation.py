@@ -2,91 +2,178 @@
 
 import structs
 
+class Vertex:
+    """
+    Builds an immutable representation of a vertex in a Navigation graph.
+    """
+    
+    def __init__(self, graph, nav_json_graph, key):
+        """Construct the vertex corresponding to $key in $nav_graph."""
+        self.nav_graph = graph
+        self.vertex_key = key
+        nav_vertex = nav_json_graph['vertices'][self.vertex_key]
+        self.nav_row = nav_vertex['row']
+        self.nav_column = nav_vertex['column']
+        self.nav_weight = nav_vertex['weight']
+
+    def __str__(self):
+        return self.vertex_key
+
+    def __lt__(self, that):
+        if self.get_column() == that.get_column():  
+            # if in the same column, whichever one is above the other
+            return self.get_row() < that.get_row()
+        else:
+            # if not in the same column, the leftmost one
+            return self.get_column() < that.get_column()
+
+    def __hash__(self):
+        return hash(self.get_key())
+
+    def __eq__(self, other):
+        return self.get_key() == other.get_key()
+
+    def get_key(self):
+        """Return the string repr of the vertex."""
+        return self.vertex_key
+
+    def get_row(self):
+        """Return the row number of the vertex."""
+        return self.nav_row
+
+    def get_col(self):
+        """Return the column number of the vertex."""
+        return self.nav_column
+
+    def get_weight(self):
+        """Return the weight of the vertex."""
+        return self.nav_weight
+
+
+class DirEdge:
+    """Builds an immutable representation of a directed edge."""
+
+    def __init__(self, tail, head, direction):
+        """Initialize the directed edge."""
+        (self.tail, self.head) = (tail, head)
+        self.direction = direction
+
+    def get_tail(self):
+        """Return the tail of the directed edge."""
+        return self.tail
+
+    def get_head(self):
+        """Return the head of the directed edge."""
+        return self.head
+
+    def get_dir(self):
+        """Return the direction of the directed edge."""
+        return self.direction
+
+
+class Graph:
+    """
+    Builds an immutable representation of a Navigation graph.
+    """
+
+    def __init__(self, nav_json_graph):
+        """Parse the JSON to save the graph of Navigation.Instance."""
+        self.nav_json_graph = nav_json_graph
+        self.vertex_table = {
+            vertex_key:Vertex(nav_graph, vertex_key)
+            for vertex_key in nav_graph['vertices'] 
+        }
+
+        edges_by_tail = nav_graph['edges']
+        edges = tuple(frozenset().union(
+            frozenset(
+                DirEdge(self.vertices[tail_key],
+                        self.vertices[edges_by_tail][tail_key][direction],
+                        direction)
+                for direction in edges[tail_key]
+            ) for tail_key in self.vertex_table))
+
+        def gen_edge_table_by(vertex_fxn, tup_edge_keys):
+            edge_table = {
+                vertex:tuple(e for e in edges if vertex_fxn())
+                for vertex in self.vertex_table.viewvalues()
+            }
+            for vertex in edge_table:
+                e_tuple = edge_table[vertex]
+                edge_table[vertex] = {'edge':e}
+                for e in e_tuple: 
+                    for key in tup_edge_keys: edge_table[vertex][key()] = e
+                #edge_table[vertex].update(key():e for key in gen_value_keys})
+
+        self.edges_by_tail = gen_edge_table_by(
+            lambda e:e.get_tail(),
+            (lambda e:e.get_dir(), lambda e:e.get_head())
+        )
+
+        self.edges_by_head = gen_edge_table_by(
+            lambda e:e.get_head(),
+            (lambda e:e.get_dir(), lambda e:e.get_tail())
+        )
+
+        #self.edges_by_tail = {
+        #    vertex:tuple(e for e in edges if e.get_tail() == vertex)
+        #    for vertex in self.vertex_table.viewvalues()
+        #}
+
+        #self.edges_by_head = {
+        #    vertex:tuple(e for e in edges if e.get_head() == vertex)
+        #    for vertex in self.vertex_table.viewvalues()
+        #}
+
+    def get_vertex(self, vertex_key):
+        """Return the <Vertex> corresponding to $vertex_key."""
+        return self.vertex_table[vertex_key]
+
+    def get_prevs(self, vertex):
+        """Return the tuple of direct predecessors of <Vertex> $vertex."""
+        try:
+            vertex = self.nav_vertices[vertex]
+        except KeyError:
+            pass
+        finally:
+            return tuple(
+                e.get_tail() for e in self.edges_by_head[vertex]['edge']
+            )
+
+    def get_nexts(self, vertex):
+        """Return the tuple of direct successors of <Vertex> $vertex."""
+        try:
+            vertex = self.nav_vertices[vertex]
+        except KeyError:
+            pass
+        finally:
+            return tuple(
+                e.get_head() for e in self.edges_by_tail[vertex]['edge']
+            )
+
+    def get_prev_via(self, vertex, direction):
+        """Return the <Vertex> $prev with DirEdge($prev, $vertex, $dir)."""
+        try: return self.edges_by_head[vertex][direction].get_prev()
+        except KeyError: return None
+
+    def get_dir_for_prev(self, vertex, prev):
+        """Return the $dir in DirEdge($prev, $vertex, $dir)."""
+        try: return self.edges_by_head[vertex][prev].get_dir()
+        except KeyError: return None
+
+    def get_next_via(self, vertex, direction):
+        """Return the <Vertex> $next with DirEdge($vertex, $next, $dir)."""
+        try: return self.edges_by_tail[vertex][direction].get_head()
+        except KeyError: return None
+
+    def get_dir_for_next(self, vertex, next):
+        """Return the $dir in DirEdge($vertex, $next, $dir)."""
+        try: return self.edges_by_head[vertex][next].get_dir()
+        except KeyError: return None
+
+
 class Instance:
     """Builds an immutable representation of a Navigation problem instance."""
-
-    class Vertex:
-        """
-        Builds an immutable representation of a vertex in a Navigation graph.
-        """
-        
-        def __init__(self, nav_graph, key):
-            """Construct the vertex corresponding to $key in $nav_graph."""
-            self.nav_graph = nav_graph
-            self.vertex_key = key
-            nav_vertex = nav_graph['vertices'][self.vertex_key]
-            self.nav_row = nav_vertex['row']
-            self.nav_column = nav_vertex['column']
-            self.nav_weight = nav_vertex['weight']
-
-        def __str__(self):
-            return self.vertex_key
-
-        def get_key(self):
-            """Return the string repr of the vertex."""
-            return self.vertex_key
-
-        def get_row(self):
-            """Return the row number of the vertex."""
-            return self.nav_row
-
-        def get_col(self):
-            """Return the column number of the vertex."""
-            return self.nav_column
-
-        def get_weight(self):
-            """Return the weight of the vertex."""
-            return self.nav_weight
-
-
-    class Edge:
-        """
-        Builds an immutable representation of an edge in a Navigation graph.
-        """
-
-        def __init__(self, tail, head, direction):
-            """Construct the directed edge <$tail, $head> $direction."""
-            (self.tail, self.head) = (tail, head)
-            self.direction = direction
-
-        def get_tail(self):
-            """Return the <Vertex> at the tail of the directed edge."""
-            return self.tail
-
-        def get_head(self):
-            """Return the <Vertex> at the head of the directed edge."""
-            return self.head
-
-        def get_dir(self):
-            """Return the direction of the directed edge."""
-            return self.direction
-
-
-    class Graph:
-        """
-        Builds an immutable representation of a Navigation graph.
-        """
-
-        def __init__(self, nav_graph):
-            self.nav_graph = nav_graph
-            self.nav_vertices = {key:Vertex(key) 
-                                      for key in nav_graph['vertices']}
-            nav_edges = nav_graph['edges']
-            self.nav_edges = tuple(frozenset().union(
-                frozenset(
-                    Edge(tail, nav_vertices[nav_edges[vertex][d]], direction)
-                    for direction in nav_edges[vertex_key])
-                for vertex_key in nav_vertices))
-
-        def get_nexts(self, vertex)
-            """Return the direct successors of <Vertex> $vertex."""
-            try:
-                vertex = self.nav_vertices[vertex]
-            except KeyError:
-                pass
-
-            return nav_graph['edges'].viewvalues()
-
 
     def __init__(self, shell, debug=False):
         """call nav/enter() and parse returned FullResponse"""
@@ -160,7 +247,7 @@ class Instance:
                 if destination == nexts[direction]: return direction
 
 class State:
-    """An immutable State for a Instance."""
+    """An immutable State within an Instance."""
     
     def __init__(self, nav_inst, 
             pos=None, creds=None, moves=None, 
