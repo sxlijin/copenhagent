@@ -2,8 +2,92 @@
 
 import structs
 
-class NavigationInstance:
-    """immutable, saves a problem instance for a game of Navigation."""
+class Instance:
+    """Builds an immutable representation of a Navigation problem instance."""
+
+    class Vertex:
+        """
+        Builds an immutable representation of a vertex in a Navigation graph.
+        """
+        
+        def __init__(self, nav_graph, key):
+            """Construct the vertex corresponding to $key in $nav_graph."""
+            self.nav_graph = nav_graph
+            self.vertex_key = key
+            nav_vertex = nav_graph['vertices'][self.vertex_key]
+            self.nav_row = nav_vertex['row']
+            self.nav_column = nav_vertex['column']
+            self.nav_weight = nav_vertex['weight']
+
+        def __str__(self):
+            return self.vertex_key
+
+        def get_key(self):
+            """Return the string repr of the vertex."""
+            return self.vertex_key
+
+        def get_row(self):
+            """Return the row number of the vertex."""
+            return self.nav_row
+
+        def get_col(self):
+            """Return the column number of the vertex."""
+            return self.nav_column
+
+        def get_weight(self):
+            """Return the weight of the vertex."""
+            return self.nav_weight
+
+
+    class Edge:
+        """
+        Builds an immutable representation of an edge in a Navigation graph.
+        """
+
+        def __init__(self, tail, head, direction):
+            """Construct the directed edge <$tail, $head> $direction."""
+            (self.tail, self.head) = (tail, head)
+            self.direction = direction
+
+        def get_tail(self):
+            """Return the <Vertex> at the tail of the directed edge."""
+            return self.tail
+
+        def get_head(self):
+            """Return the <Vertex> at the head of the directed edge."""
+            return self.head
+
+        def get_dir(self):
+            """Return the direction of the directed edge."""
+            return self.direction
+
+
+    class Graph:
+        """
+        Builds an immutable representation of a Navigation graph.
+        """
+
+        def __init__(self, nav_graph):
+            self.nav_graph = nav_graph
+            self.nav_vertices = {key:Vertex(key) 
+                                      for key in nav_graph['vertices']}
+            nav_edges = nav_graph['edges']
+            self.nav_edges = tuple(frozenset().union(
+                frozenset(
+                    Edge(tail, nav_vertices[nav_edges[vertex][d]], direction)
+                    for direction in nav_edges[vertex_key])
+                for vertex_key in nav_vertices))
+
+        def get_nexts(self, vertex)
+            """Return the direct successors of <Vertex> $vertex."""
+            try:
+                vertex = self.nav_vertices[vertex]
+            except KeyError:
+                pass
+
+            return nav_graph['edges'].viewvalues()
+
+
     def __init__(self, shell, debug=False):
         """call nav/enter() and parse returned FullResponse"""
         
@@ -75,8 +159,8 @@ class NavigationInstance:
             for direction in nexts: 
                 if destination == nexts[direction]: return direction
 
-class NavigationState:
-    """An immutable NavigationState for a NavigationInstance."""
+class State:
+    """An immutable State for a Instance."""
     
     def __init__(self, nav_inst, 
             pos=None, creds=None, moves=None, 
@@ -156,7 +240,7 @@ class NavigationState:
     def get_result(self, direction):
         """Return state resulting from moving in $direction."""
         dest = self.get_nexts()[direction]
-        return NavigationState(
+        return State(
             self.nav_inst, 
             pos=dest,
             creds = self.get_n_creds() + self.nav_inst.get_weight(dest),
@@ -175,12 +259,12 @@ class NavigationState:
             self.get_pos(), self.get_avg_creds(), 
             self.get_n_creds(), self.get_n_moves())
 
-class NavigationAgent:
-    """NavigationAgent to play a NavigationInstance."""
+class Agent:
+    """Agent to play a Instance."""
     
     def __init__(self, nav_inst, nav_state=None, debug=False):
         self.nav_inst = nav_inst
-        self.nav_state = NavigationState(nav_inst) if nav_state == None else nav_state
+        self.nav_state = State(nav_inst) if nav_state == None else nav_state
         self.debug = debug
     
     def __str__(self):
@@ -229,7 +313,7 @@ class NavigationAgent:
     def nav_random(self):
         self.log_alg_start('random walk')
         # NOTE: warning, this binds $s to $self.nav_state
-        # if NavigationState is changed to be mutable, $s must be a deepcopy()
+        # if State is changed to be mutable, $s must be a deepcopy()
         s = self.nav_state
         moves = []
         while s.get_nexts() != {} : 
@@ -246,7 +330,7 @@ class NavigationAgent:
     def nav_greedy_best_first(self):
         self.log_alg_start('greedy best first')
         # NOTE: warning, this binds $s to $self.nav_state
-        # if NavigationState is changed to be mutable, $s must be a deepcopy()
+        # if State is changed to be mutable, $s must be a deepcopy()
         s = self.nav_state
         moves = []
         while s.get_nexts() != {} : 
