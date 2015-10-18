@@ -268,6 +268,12 @@ class State:
             self.get_vertex(), self.get_avg_creds(), 
             self.get_n_creds(), self.get_n_moves())
 
+    def __lt__(self, other): return self.get_avg_creds() < other.get_avg_creds()
+    def __le__(self, other): return self.get_avg_creds() <= other.get_avg_creds()
+    def __gt__(self, other): return self.get_avg_creds() > other.get_avg_creds()
+    def __ge__(self, other): return self.get_avg_creds() >= other.get_avg_creds()
+    # do not implement __eq__ or __ne__: want those two to default to using id()
+
     #def get_deepcopy(self):
     #    """Return deepcopy of internal state."""
     #    # MUST implement if NavState is made mutable
@@ -299,8 +305,12 @@ class State:
         except ZeroDivisionError: return 0.0
     
     def get_prev_state(self):
-        """Return the ancestor NavState (returns None if none exists)."""
+        """Return the ancestor <State>, None if none exists."""
         return self.prev_state
+
+    def get_prev_vertex(self):
+        """Return the <Vertex> of the ancestor <State>, None if none exists."""
+        return self.get_prev_state().get_vertex()
     
     def get_dir_from_prev(self):
         """Return the direction from self.get_prev() to $self."""
@@ -484,6 +494,8 @@ class Agent:
         frontier = data_struct
         frontier.add(s)
         explored = {}
+
+        # initialize best <State> found so far
         best_terminal_state = s
 
         seed = s.instance.get_seed()
@@ -502,17 +514,18 @@ class Agent:
         while not frontier.is_empty():
             # $s is the current NavState being expanded
             s = frontier.rm()
-            
+
             # if current <State> better than recorded <State> for <Vertex>
             if (s.get_vertex() not in explored 
-                    or s.get_avg_creds() > explored[s.get_vertex()]['avg']): 
+                    or s.get_prev_state() != explored[s.get_prev_vertex()]
+                    or s > explored[s.get_vertex()]):
+                #     or s.get_avg_creds() > explored[s.get_vertex()]['avg']): 
 
                 # overwrite or create entry corresponding to <Vertex>
-                explored[s.get_vertex()] = {'avg':s.get_avg_creds()}
+                explored[s.get_vertex()] = s #{'avg':s.get_avg_creds()}
 
                 # record best <State> to end at if discovered
-                if s.get_avg_creds() > best_terminal_state.get_avg_creds(): 
-                    best_terminal_state = s
+                if s > best_terminal_state: best_terminal_state = s
             # otherwise, skip to next item in frontier
             else:
                 continue
@@ -524,6 +537,13 @@ class Agent:
                 if result.get_weight() >= seed:  frontier.add(result)
                 elif self.debug: l.log('searching', 'discarding %s' % result)
         
+        # more efficient to ~seq search in the loop, presumably becaues of
+        # o(1) hashtable lookups and compares that mean you check less states
+        # so this is actually *less* efficient:
+        # single trial of 100 runs gives 0.2109698s average below,
+        # versus 0.19308929 average for checking in the loop
+        #best_terminal_state = max(explored.viewvalues())
+
         # log last edge in best path
         if self.debug: log('found best end state', best_terminal_state)
         
@@ -539,10 +559,10 @@ class Agent:
         while not hist.is_empty():
             s = hist.pop()
             self.cmd_nav_move(s.get_dir_from_prev())
-            if self.debug: 
+            if False and self.debug: 
                 log('moving from', 
                       '%7s to %7s via %5s to earn %3d' % (
-                        s.get_prev_state().get_vertex(),
+                        s.get_prev_vertex(),
                         s.get_vertex(),
                         s.get_dir_from_prev(),
                         s.get_weight()
