@@ -2,6 +2,13 @@
 
 import structs
 
+from copenhagent import Logger
+l = Logger()
+log = l.log
+
+def log_error(event, e):
+    log(event, '%s, %s' % (type(e).__name__, e.message))
+
 class Vertex:
     """
     Builds an immutable representation of a vertex in a Navigation graph.
@@ -176,35 +183,37 @@ class Graph:
         except KeyError:
             pass
         finally:
-            #print type(vertex), vertex
-            #print self.edges_by_tail[vertex]
             return tuple(
                 e.get_head() for e in self.edges_by_tail[vertex]['edges']
             )
 
     def get_prev_via(self, vertex, direction):
         """Return the <Vertex> $prev with DirEdge($prev, $vertex, $dir)."""
-        try: return self.edges_by_head[vertex][direction].get_prev()
-        except KeyError as e: 
-            print 'get_prev_via()', type(e).__name__, e.message
+        try: 
+            return self.edges_by_head[vertex][direction].get_prev()
+        except KeyError as e:
+            log_error('get_prev_via()', e)
 
     def get_dir_from_prev(self, vertex, prev_vertex):
         """Return the $dir in DirEdge($prev, $vertex, $dir)."""
-        try: return self.edges_by_head[vertex][prev_vertex].get_dir()
+        try:
+            return self.edges_by_head[vertex][prev_vertex].get_dir()
         except KeyError as e: 
-            print 'get_dir_from_prev()', type(e).__name__, e.message
+            log_error('get_dir_from_prev()', e)
 
     def get_next_via(self, vertex, direction):
         """Return the <Vertex> $next with DirEdge($vertex, $next, $dir)."""
-        try: return self.edges_by_tail[vertex][direction].get_head()
+        try:
+            return self.edges_by_tail[vertex][direction].get_head()
         except KeyError as e: 
-            print 'get_next_via()', type(e).__name__, e.message
+            log_error('get_next_via()', e)
 
     def get_dir_to_next(self, vertex, next_vertex):
         """Return the $dir in DirEdge($vertex, $next, $dir)."""
-        try: return self.edges_by_tail[vertex][next_vertex].get_dir()
+        try:
+            return self.edges_by_tail[vertex][next_vertex].get_dir()
         except KeyError as e: 
-            print 'get_dir_to_next()', type(e).__name__, e.message
+            log_error('get_dir_to_next()', e)
 
 
 class Instance:
@@ -225,16 +234,6 @@ class Instance:
         nav_config = nav_setup['config']
         self.graph = Graph(nav_setup['graph'])
         
-        if debug and False:
-            print '=== dumping $nav_config ==='
-            dump_json(nav_config, override=True)
-            print
-            print '=== showing $nav_setup.keys() ==='
-            print nav_setup.keys()
-            print
-            print '=== showing $nav_setup[position] ==='
-            dump_json(nav_setup['position'], override=True)
-            
         # store $seed, which is the default weight for nav vertices
         self.seed = nav_config['seed']
         self.init_vertex = self.graph.get_vertex(
@@ -299,7 +298,9 @@ class State:
         self.dir_from_prev = dir_from_prev
  
     def __str__(self):
-        return self.vertex.__str__()
+        return ' %7s; avg is %5.2f (%3d creds in %2d moves)' % (
+            self.get_vertex(), self.get_avg_creds(), 
+            self.get_n_creds(), self.get_n_moves())
 
     #def get_deepcopy(self):
     #    """Return deepcopy of internal state."""
@@ -308,7 +309,7 @@ class State:
     
     def get_vertex(self):
         """Returns current position."""
-        return self.__str__()
+        return self.vertex
     
     def get_n_creds(self):
         """Returns number of earned discredits."""
@@ -325,11 +326,6 @@ class State:
     def get_nexts(self):
         """Return the tuple of direct successors of <Vertex> $self.vertex."""
         return self.vertex.get_nexts()
- 
-    # TODO: replace with DirEdge __str__(), only has one callback
-    def get_edge_to(self):
-        """Return directed edge to $self.pos with dir as 3-tuple."""
-        return (self.get_prev_state(), self, self.get_dir_from_prev())
     
 #    def get_dest_via(self, direction):
 #        """Return would-be dest of moving in $direction from $self.pos"""
@@ -360,11 +356,16 @@ class State:
             raise ValueError(
                 'get_next_state() takes either $direction or $next_vertex'
             )
+
+        # warning: hardcoded different navigation directions
+        if direction != None and direction not in ('left','stay','right'): 
+            raise ValueError('received invalid $direction: %s' % direction)
+
+        if direction == None:
+            direction = self.vertex.get_dir_to_next(next_vertex)
         if next_vertex == None: 
             next_vertex = self.vertex.get_next_via(direction)
-        if direction == None: 
-            direction = self.vertex.get_dir_to_next(next_vertex)
-            
+
         return State(
             self.instance, 
             vertex = next_vertex,
@@ -374,16 +375,10 @@ class State:
 
     def get_next_states(self):
         """Return tuple of possible successor states of $self."""
-        return tuple(self.get_next_state(vertex) 
+        return tuple(self.get_next_state(next_vertex=vertex) 
                      for vertex in self.vertex.get_nexts())
 
-    def log(self):
-        """Log $self (55 chars long)."""
-        #print '='*55
-        print ' %7s; avg creds is %5.2f (%3d creds in %2d moves)' % (
-            self.get_vertex(), self.get_avg_creds(), 
-            self.get_n_creds(), self.get_n_moves())
-
+    
 class Agent:
     """Agent to play a Instance."""
     
@@ -395,25 +390,23 @@ class Agent:
     def __str__(self):
         return self.get_pos()
     
-    def log_alg_start(self, alg_name):
+    def alg_log_start(self, alg_name):
         """Log the start of a navigation algorithm."""
-        if self.debug: self.log_alg_msg(alg_name, 'START')
+        if self.debug: self.alg_log_msg(alg_name, 'START')
 
-    def log_alg_end(self, alg_name):
+    def alg_log_end(self, alg_name):
         """Log the start of a navigation algorithm."""
-        if self.debug: self.log_alg_msg(alg_name, 'END')
+        if self.debug: self.alg_log_msg(alg_name, 'END')
 
-    def log_alg_msg(self, alg_name, msg):
+    def alg_log_msg(self, alg_name, msg):
         """Log a message for a navigation algorithm."""
-        if not self.debug: return
-        log_msg = '%s  [%s] <%s> ' % ('='*29, alg_name, msg)
-        print log_msg + '='*(55 - len(log_msg))
+        if self.debug: log(alg_name, msg)
 
-    def cmd_nav_moves(self, moves):
+    def cmd_nav_move(self, moves):
         """Command agent to make a move in navigation."""
         # if passed a $direction
         if type(moves) in (str, unicode):
-            #print 'navigation lane direction=%s' % moves
+            #l.log('sending command', 'navigation lane direction=%s' % moves)
             return self.nav_inst.try_command(
                 'navigation lane direction=%s' % moves)
         # if passed list of moves
@@ -421,11 +414,11 @@ class Agent:
             # if moves are in the form of ($direction, $dest_vertex)
             if type(moves[0]) is tuple:
                 # move in $direction
-                for move in moves: self.cmd_nav_moves(move[0])
+                for move in moves: self.cmd_nav_move(move[0])
             # if moves are in the form of $direction
             elif type(moves[0]) is str:
                 # move in $direction
-                for move in moves: self.cmd_nav_moves(move)
+                for move in moves: self.cmd_nav_move(move)
     
     def cmd_nav_leave(self):
         """Command agent to leave navigation."""
@@ -437,24 +430,26 @@ class Agent:
         self.cmd_nav_leave()
     
     def nav_random(self):
-        self.log_alg_start('random walk')
+        self.alg_log_start('random walk')
         # NOTE: warning, this binds $s to $self.nav_state
         # if State is changed to be mutable, $s must be a deepcopy()
         s = self.nav_state
         moves = []
         while s.get_nexts() != {} : 
             if self.debug: s.log()
-            next_dirs = s.get_nexts()
-            direction = next_dirs.keys()[randint(0, len(next_dirs)-1)]
-            # bind $s to a new NavState
-            s = s.get_next_state(direction)
-            moves.append((direction, s))
-        self.cmd_nav_moves(moves)
-        self.log_alg_end('random walk')
+            successors = s.get_nexts()
+            s = sucessors[randint(0, len(successors)-1)]
+#del#            direction = next_dirs.keys()[randint(0, len(next_dirs)-1)]
+#del#            # bind $s to a new NavState
+#del#            s = s.get_next_state(direction)
+#del#            moves.append((direction, s))
+#del#        self.cmd_nav_move(moves)
+        self.alg_log_end('random walk')
         self.prompt_cmd_nav_leave()
     
+    # this is a hill-climber, not a greedy-best-first
     def nav_greedy_best_first(self):
-        self.log_alg_start('greedy best first')
+        self.alg_log_start('greedy best first')
         # NOTE: warning, this binds $s to $self.nav_state
         # if State is changed to be mutable, $s must be a deepcopy()
         s = self.nav_state
@@ -467,8 +462,8 @@ class Agent:
             # binds $s to a new NavState
             s = s.get_next_state(direction)
             moves.append((direction, s))
-        self.cmd_nav_moves(moves)
-        self.log_alg_end('greedy best first')
+        self.cmd_nav_move(moves)
+        self.alg_log_end('greedy best first')
         self.prompt_cmd_nav_leave()
 
     # generic tree search algorithm:
@@ -523,11 +518,11 @@ class Agent:
     #       python best bet is using a heapq
     def nav_generic_first_by_struct(self, data_struct):
         alg_names = {
-            'Queue':'generic breadth first', 
-            'Stack':'generic depth first'
+            'Queue':'gen. breadth first', 
+            'Stack':'gen. depth first'
         }
         alg_name = alg_names[data_struct.name()]
-        self.log_alg_start(alg_name)
+        self.alg_log_start(alg_name)
         
         # NavState currently points to its ancestor
         # maybe a more efficient way to represent the directed edges?
@@ -561,10 +556,6 @@ class Agent:
             # is s.prev the most optimal path?
             # if not should discard
 
-            #if s.get_weight() < seed:
-            #    print "skip %s %s < %s" % (s.get_pos(), s.get_weight(), seed)
-            #    continue
-    
             # if current NavState has not yet been explored
             #       OR has been explored & NavEdge is better path
             # use s.get_pos() as key bc can have different $s at same vertex
@@ -580,16 +571,15 @@ class Agent:
                 continue
             # add a continue 
 
-            #if self.debug: s.log()
-            #if self.debug: print id(s)
+            #if self.debug: log('', s)
             # add potential next moves to the frontier
             for result in s.get_next_states():
                 # never add a vertex with weight < seed to the frontier
                 if result.get_weight() >= seed:  frontier.add(result)
-                elif self.debug:    print 'not adding %s' % result
+                elif self.debug: l.log('searching', 'discarding %s' % result)
         
         # log last edge in best path
-        if self.debug: best_end.log()
+        if self.debug: log('found best end state', best_end)
         
         # regenerate best path from its terminal edge
         # work backwards until NavState.prev == (initial_state.prev = None)
@@ -602,12 +592,17 @@ class Agent:
         # follow the best path forward
         while not hist.is_empty():
             s = hist.pop()
-            #if self.debug: print s.get_prev_dir()
-            self.cmd_nav_moves(s.get_dir_from_prev())
+            self.cmd_nav_move(s.get_dir_from_prev())
             if self.debug: 
-                print '>>> %7s >>> %7s via %5s' % (s.get_edge_to())
+                log('moving from', 
+                      '%7s to %7s via %5s' % (
+                        s.get_prev_state().get_vertex(),
+                        s.get_vertex(),
+                        s.get_dir_from_prev()
+                        )
+                     )
 
-        self.log_alg_end(alg_name)
+        self.alg_log_end(alg_name)
 
     def nav_generic_breadth_first(self):
         """Runs a breadth first search using a generic search with a queue."""
