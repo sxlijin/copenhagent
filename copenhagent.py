@@ -98,14 +98,15 @@ class Shell:
             if usi == 'exit':  break
             try:
                 self.try_command(usi)
-            except ValueError as e:
+            except (AttributeError, ValueError) as e:
                 log_error(e)
             if cmd != None: break
 
     def set_active_agent(self, token=None, name=None):
         try:
+            if self.active_agent != None: self.active_agent.drop_control()
             self.active_agent = Agent(token, name)
-        except ValueError as e:
+        except (AttributeError, ValueError) as e:
             log_error(e)
     
     def try_command(self, argstr):
@@ -245,10 +246,10 @@ class Shell:
             if len(argv[2:]) != 1: is_custom = False
             else:
                 # 'copenhagent new _____'
-                if argv[1] == 'new':  self.set_agent(new=argv[2])
+                if argv[1] == 'new':  self.set_active_agent(name=argv[2])
                 # 'copenhagent agent _____'
-                elif argv[1] == 'agent':  self.set_agent(token=argv[2])
-        if argstr == 'navigation ai':  ai_nav(self)
+                elif argv[1] == 'agent':  self.set_active_agent(token=argv[2])
+        if argstr == 'navigation ai':  navigation_ai(self)
         elif False: pass
         else: raise CustomProgramError('run_custom_program(): not a custom program')
 
@@ -364,7 +365,7 @@ class Logger:
 
 ### NAVIGATION
 
-def ai_nav(shell):
+def navigation_ai(shell):
     debug=False
     debug=True
     
@@ -424,7 +425,10 @@ def main():
         sys.exit(0)
 
     opened = Shell(token=token) if name == None else Shell(name=name)
-    opened.run(parser.parse_args().command.strip())
+    try:
+        opened.run(parser.parse_args().command.strip())
+    except AttributeError:
+        opened.run()
 
     sys.exit(0)
 
