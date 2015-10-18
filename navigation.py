@@ -374,7 +374,7 @@ class Agent:
         """Command agent to make a move in navigation."""
         # if passed a $direction
         if type(moves) in (str, unicode):
-            #l.log('sending command', 'navigation lane direction=%s' % moves)
+            #log('sending command', 'navigation lane direction=%s' % moves)
             return self.instance.try_command(
                 'navigation lane direction=%s' % moves)
         # if passed list of moves
@@ -535,7 +535,7 @@ class Agent:
             for result in s.get_next_states():
                 # never add a vertex with weight < seed to the frontier
                 if result.get_weight() >= seed:  frontier.add(result)
-                elif self.debug: l.log('searching', 'discarding %s' % result)
+                elif self.debug: log('searching', 'discarding %s' % result)
         
         # more efficient to ~seq search in the loop, presumably becaues of
         # o(1) hashtable lookups and compares that mean you check less states
