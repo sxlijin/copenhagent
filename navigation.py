@@ -223,7 +223,8 @@ class Instance:
         """call nav/enter() and parse returned FullResponse"""
         
         self.debug = debug
-        self.token = shell.active_agent.agent_token
+        self.shell = shell
+        self.token = self.shell.active_agent.agent_token
 
         self.try_command = shell.try_command
         
@@ -251,14 +252,35 @@ class State:
     """An immutable State within an Instance."""
     
     def __init__(self, instance,
-            vertex=None, count_credits=None, count_moves=None,
+            vertex=None, count_credits=None, count_actions=None,
             prev_state=None, dir_from_prev=None):
         """Contruct a NavState: track NavInst, pos, #credits, #moves, $prev."""
         # NOTE: if NavState is made mutable, MUST implement deepcopy()
         self.instance = instance
         self.vertex = instance.get_initial() if vertex == None else vertex
-        self.count_credits = 0 if count_credits == None else count_credits
-        self.count_moves = 0 if count_moves == None else count_moves
+
+        if count_credits == None:
+            try:
+                self.count_credits = instance.shell.active_agent.n_credits
+            except AttributeError:
+                self.count_credits = 0
+        else:
+            self.count_credits = count_credits
+
+        if count_actions == None:
+            try:
+                self.count_actions = instance.shell.active_agent.n_actions
+            except AttributeError:
+                self.count_actions = 0
+        else:
+            self.count_actions = count_actions
+
+#        try:
+#            self.count_credits = instance.shell.active_agent.n_credits
+#            self.count_actions = instance.shell.active_agent.n_actions
+#        except AttributeError:
+#            self.count_credits = 0 if count_credits == None else count_credits
+#            self.count_actions = 0 if count_actions == None else count_actions
         # save previous state
         self.prev_state = prev_state
         self.dir_from_prev = dir_from_prev
@@ -266,7 +288,7 @@ class State:
     def __str__(self):
         return '%7s with avg of %5.2f (%3d creds in %2d moves)' % (
             self.get_vertex(), self.get_avg_creds(), 
-            self.get_n_creds(), self.get_n_moves())
+            self.get_n_credits(), self.get_n_actions())
 
     def __lt__(self, other): return self.get_avg_creds() < other.get_avg_creds()
     def __le__(self, other): return self.get_avg_creds() <= other.get_avg_creds()
@@ -283,13 +305,13 @@ class State:
         """Returns current position."""
         return self.vertex
     
-    def get_n_creds(self):
+    def get_n_credits(self):
         """Returns number of earned discredits."""
         return self.count_credits
 
-    def get_n_moves(self):
+    def get_n_actions(self):
         """Returns number of moves made."""
-        return self.count_moves
+        return self.count_actions
     
     def get_weight(self):
         """Returns weight of $self.vertex."""
@@ -301,7 +323,7 @@ class State:
     
     def get_avg_creds(self):
         """Returns average discredits earned per move."""
-        try: return 1.0*self.get_n_creds()/self.get_n_moves()
+        try: return 1.0*self.get_n_credits()/self.get_n_actions()
         except ZeroDivisionError: return 0.0
     
     def get_prev_state(self):
@@ -337,8 +359,8 @@ class State:
         return State(
             self.instance, 
             vertex = next_vertex,
-            count_credits = self.get_n_creds() + next_vertex.get_weight(),
-            count_moves = self.get_n_moves() + 1,
+            count_credits = self.get_n_credits() + next_vertex.get_weight(),
+            count_actions = self.get_n_actions() + 1,
             prev_state = self, dir_from_prev = direction)
 
     def get_next_states(self):
@@ -491,6 +513,10 @@ class Agent:
         #   overwriting a <State> if new <State> is better
         # track the best path according to its terminal node
         s = self.state
+
+        if self.debug: log('after nav/enter()', s)
+
+        s.count_actions += 1 # increment to account for nav/leave()
         frontier = data_struct
         frontier.add(s)
         explored = {}
@@ -545,13 +571,17 @@ class Agent:
         # versus 0.19308929 average for checking in the loop
         #best_terminal_state = max(explored.viewvalues())
 
-        # log last edge in best path
-        if self.debug: log('found best end state', best_terminal_state)
+        # log last <State> in best path
+        if self.debug: 
+            # also considers if nav/enter() -> nav/leave() is the best option
+            log('best terminal state', best_terminal_state)
         
         # regenerate best path from its terminal edge
         # work backwards until NavState.prev == (initial_state.prev = None)
         hist = structs.Stack()
         s = best_terminal_state
+
+        #if s > self.state:
         while None != s.get_prev_state():
             hist.push(s)
             s = s.get_prev_state()
@@ -569,6 +599,9 @@ class Agent:
                         s.get_weight()
                         )
                      )
+        #else:
+        #    log('not moving', 's is worse than current state')
+        #    log('current state', s)
 
         self.alg_log_end(alg_name)
 
@@ -579,5 +612,3 @@ class Agent:
     def nav_generic_depth_first(self):
         """Runs a depth first search using a generic search with a stack."""
         self.nav_generic_first_by_struct(Stack())
-
-
