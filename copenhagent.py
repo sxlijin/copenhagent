@@ -41,6 +41,13 @@ def list_reprs(iterable):
 def log_error(e):
     if isinstance(e, Exception): e = (type(e).__name__, e.message.lower())
     print '[ ERROR: %12.12s ] %s' % e
+
+class CustomProgramError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
     
 class Shell:
     """Open a shell to control agents in the copenhagent environment."""
@@ -82,17 +89,18 @@ class Shell:
         #if token == None: token = 'c838f91f0fdcaba5946b5f02f67ce1b2'
         self.active_agent = None
         self.set_active_agent(token, name)
-        self.loop()
 
-    def loop(self):
-        """Run the shell."""
+    def run(self, cmd=None):
+        """Run the shell. If $cmd is specified, attempts to run it and 
+        immediately exists after running."""
         while True:
-            usi = raw_input('disai> ')
+            usi = raw_input('disai> ') if cmd == None else cmd
             if usi == 'exit':  break
             try:
                 self.try_command(usi)
             except ValueError as e:
                 log_error(e)
+            if cmd != None: break
 
     def set_active_agent(self, token=None, name=None):
         try:
@@ -127,7 +135,7 @@ class Shell:
                 return r
             try:
                 self.run_custom_program(argstr)
-            except ValueError:
+            except CustomProgramError:
                 if self.verify_api_command(argv):  
                     return self.do_api_command(argv)
         except IndexError:
@@ -144,6 +152,7 @@ class Shell:
         If <endpoint> or <query> are omitted, prompt user for
         <endpoint> or <value>s for each <param> as appropriate.
         """
+
         
         api_commands = self.api_commands
 
@@ -180,10 +189,18 @@ class Shell:
         queries = argv[2:]
         queries = ' '.join(queries).replace('=', ' = ').split()
         queries = ' '.join(queries).replace(' = ', '=').split()
+        try:
+            # handle trailing '='s
+            if queries[-1] == '=' and len(queries) > 1: 
+                queries.pop(-1)
+                queries[-1] += '='
+        except IndexError: 
+            pass
 
         queries = { param:val 
                     for [param,val] 
-                    in [q.split('=') for q in queries if q.count('=') == 1]}
+                    in [q.split('=') if q.count('=') == 1 else [q,'']
+                        for q in queries ]}
 
         # prompt for <value>s if no <query> provided
         if len(queries) == 0 and len(api_commands[command][endpoint]) != 0:
@@ -202,9 +219,10 @@ class Shell:
                         repr(queries[param]), repr(param)))
                     return False
         else:
-            log_unk('%s not recognized as valid <query> for %s' % ( ', '.join([
-                    '%s=%s' % (repr(param), repr(queries[param])) 
-                    for param in queries]) ))
+            log_unk('%s not recognized as valid <query> for %s' % ( 
+                ', '.join(('%s=%s' % (param, repr(queries[param])) 
+                           for param in queries)),
+                endpoint))
             return False
         
         # if no failure points reached
@@ -232,17 +250,19 @@ class Shell:
                 elif argv[1] == 'agent':  self.set_agent(token=argv[2])
         if argstr == 'navigation ai':  ai_nav(self)
         elif False: pass
-        else: raise ValueError('not a custom program')
+        else: raise CustomProgramError('run_custom_program(): not a custom program')
 
 class Agent:
     """Controls an agent in the copenhagent environment."""
     
-    def __init__(self, token=None, name=None):
+    def __init__(self, token=None, name=None, shell=None):
         """Take control of the agent."""
         if (token, name).count(None) != 1: 
             raise ValueError(
                 'Must construct Agent() with either $token or $name (not both).'
             )
+
+        self.shell = shell
         
         self.agent_token = None
         self.header = {}
@@ -256,10 +276,10 @@ class Agent:
             self.update_with_agent_token(token)
 
         self.init_control()
-
-    def get_header(self):
-        """Return the header {} containing the agent token."""
-        return self.header
+#del#
+#del#    def get_header(self):
+#del#        """Return the header {} containing the agent token."""
+#del#        return self.header
 
     def create_new(self, name):
         """Create a new agent named $name and return its agent token."""
@@ -271,16 +291,13 @@ class Agent:
     def init_control(self, msg=None):
         """Executes agent/say(), says 'python connected'."""
         if msg == None:  msg = 'python connected'
-        self.say(msg)
+        self.poll_api_say(msg)
  
     def drop_control(self, msg=None):
         """Executes agent/say(), says 'python disconnected'."""
         if msg == None:  msg = 'python disconnected'
-        self.say(msg)
+        self.poll_api_say(msg)
     
-    def say(self, msg):
-        return self.poll_api(api_url_for('environment/agent/say', 'message=%s' % msg))
-
     def update_with(self, r):
         """Take a <requests> object and update the internal state."""
         if r.status_code == 401 and r.json()['code'] == 'Unauthorized':
@@ -303,49 +320,90 @@ class Agent:
 
     def update_with_state(self, r):
         r = r['agents'][self.agent_token]
-        self.location = r['locationId'] if 'locationId' in r else None
+        self.location = r['locationId'] if 'locationId' in r else self.location
         self.n_credits = r['utility']
         self.n_actions = r['actionsPerformed']
     
+    def poll_api_say(self, msg):
+        return self.poll_api(
+            api_url_for('environment/agent/say', 'message=%s' % msg))
+
     def poll_api(self, api_url):
         """Request $api_url with $self.agent_token specified in header."""
         #print 'requesting %s with agentToken %s' %(api_url, self.agent_token)
-        r = requests.get(api_url, headers=self.get_header())
+        r = requests.get(api_url, headers=self.header)
         self.update_with(r)
         return r
         
+class Logger:
+    """Builds a formatter for messages logged to the console."""
 
+    def __init__(self, function=None):
+        if function != None: self.log_function(function)
+
+    def log_function(self, function):
+        """Run $function and log its start, end, and runtime."""
+        f_name = function.__name__
+        f_event_str = '%-10.10s %s' % (function.__name__, '%9.9s')
+
+        start = self.log(f_event_str % '<start>')
+        self.function_output = function()
+        end = self.log(f_event_str % '<end>')
+        
+        runtime = end-start
+        self.log(f_event_str % '<runtime>', 
+                 '%10.10s() runtime was %10.8f' % (f_name, runtime))
+
+    def log(self, event, message=''):
+        t = time.clock()
+        print '[ %10.8f ] %20.20s : %-50.50s' % (t, event, message)
+        return t
+
+    def f_output(self):
+        return self.function_output
 
 ### NAVIGATION
 
 def ai_nav(shell):
     debug=False
-    #debug=True
+    debug=True
     
     def print_timetable(text):
         print_flag = True
         if print_flag:  print text
-    
-    border = '%s:%s' % ('='*11, '='*19)
-    timetable_entry = '| %8.4f : nav ai %9s |'  
 
-    print_timetable(border)
-    start = time.clock()
-    print_timetable(timetable_entry % (start, '<start>'))
-    
-    nav_inst = navigation.NavigationInstance(shell, debug=debug)
-    nav_agent = navigation.NavigationAgent(nav_inst, debug=debug)
-    
+    def nav_setup():
+        nav_inst = navigation.Instance(shell, debug=debug)
+        nav_agent = navigation.Agent(nav_inst, debug=debug)
+        return nav_agent
+
     data_struct = (structs.Queue(), structs.Stack())[0]
-    nav_agent.nav_generic_first_by_struct(data_struct)
+    
+    def nav_solve():
+        return nav_agent.nav_generic_first_by_struct(data_struct)
 
-    end = time.clock()
-    print_timetable(timetable_entry % (end, '<end>'))
-    print_timetable(border)
-    print_timetable(timetable_entry % (end-start, '<runtime>'))
-    print_timetable(border)
-
-    nav_agent.prompt_cmd_nav_leave()
+    nav_agent = Logger(nav_setup).f_output()
+    Logger(nav_solve) 
+#    border = '%s:%s' % ('='*11, '='*19)
+#    timetable_entry = '| %8.4f : nav ai %9s |'  
+#
+#    print_timetable(border)
+#    start = time.clock()
+#    print_timetable(timetable_entry % (start, '<start>'))
+#    
+#    nav_inst = navigation.Instance(shell, debug=debug)
+#    nav_agent = navigation.Agent(nav_inst, debug=debug)
+#    
+#    data_struct = (structs.Queue(), structs.Stack())[0]
+#    nav_agent.nav_generic_first_by_struct(data_struct)
+#
+#    end = time.clock()
+#    print_timetable(timetable_entry % (end, '<end>'))
+#    print_timetable(border)
+#    print_timetable(timetable_entry % (end-start, '<runtime>'))
+#    print_timetable(border)
+#
+    nav_agent.cmd_nav_leave()
 
 ##### AI FUNCTIONS <END> #####
 
@@ -373,6 +431,10 @@ def main():
         '--agent',
         metavar='<agentToken>',
         help='control an existing agent with <agentToken>')
+    parser.add_argument(
+        '--command',
+        metavar='<command>',
+        help='send command to shell and close immediately after running')
     
     (name, token) = (parser.parse_args().new, parser.parse_args().agent)
 
@@ -381,6 +443,8 @@ def main():
         sys.exit(0)
 
     opened = Shell(token=token) if name == None else Shell(name=name)
+    opened.run(parser.parse_args().command)
+
     sys.exit(0)
 
 
