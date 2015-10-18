@@ -517,25 +517,26 @@ class Agent:
 
             # if current <State> better than recorded <State> for <Vertex>
             if (s.get_vertex() not in explored 
-                    or s.get_prev_state() != explored[s.get_prev_vertex()]
+                    or s.get_prev_state() == explored.get(s.get_prev_vertex(), 
+                                                          None)
                     or s > explored[s.get_vertex()]):
-                #     or s.get_avg_creds() > explored[s.get_vertex()]['avg']): 
 
                 # overwrite or create entry corresponding to <Vertex>
                 explored[s.get_vertex()] = s #{'avg':s.get_avg_creds()}
 
                 # record best <State> to end at if discovered
                 if s > best_terminal_state: best_terminal_state = s
+                
             # otherwise, skip to next item in frontier
             else:
                 continue
 
-            #if self.debug: log('current NavState', s)
+            #if self.debug: log('current <State>', s)
             # add potential next moves to the frontier
             for result in s.get_next_states():
                 # never add a vertex with weight < seed to the frontier
                 if result.get_weight() >= seed:  frontier.add(result)
-                elif self.debug: log('searching', 'discarding %s' % result)
+                elif False and self.debug: log('searching', 'discarding %s' % result)
         
         # more efficient to ~seq search in the loop, presumably becaues of
         # o(1) hashtable lookups and compares that mean you check less states
