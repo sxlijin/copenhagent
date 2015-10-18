@@ -35,6 +35,7 @@ class Vertex:
             return self.get_column() < that.get_column()
 
     def __hash__(self):
+        """Use the string representation of the vertex as its identifier."""
         return hash(self.get_key())
 
     def __eq__(self, other):
@@ -130,10 +131,19 @@ class Graph:
             ))
 
         def gen_edge_table_by(vertex_fxn, tup_edge_keys):
+            """
+            Generate a nested hashtable of edges:
+
+                edge_table[key1][key2]
+
+            where $key1 is a <Vertex> and $key2() in $tup_edge_keys.
+            """
+            # determine the different edges to key each <Vertex> to
             edge_table = {
                 vertex:tuple(e for e in edges if vertex_fxn(e) == vertex)
                 for vertex in self.vertex_table.viewvalues()
             }
+            # create keys in edge_table[<Vertex>] to look up the edges
             for vertex in edge_table:
                 e_tuple = edge_table[vertex]
                 edge_table[vertex] = {'edges':e_tuple}
@@ -150,16 +160,6 @@ class Graph:
             lambda e:e.get_head(),
             (lambda e:e.get_dir(), lambda e:e.get_tail())
         )
-
-        #self.edges_by_tail = {
-        #    vertex:tuple(e for e in edges if e.get_tail() == vertex)
-        #    for vertex in self.vertex_table.viewvalues()
-        #}
-
-        #self.edges_by_head = {
-        #    vertex:tuple(e for e in edges if e.get_head() == vertex)
-        #    for vertex in self.vertex_table.viewvalues()
-        #}
 
     def get_vertex(self, vertex_key):
         """Return the <Vertex> corresponding to $vertex_key."""
@@ -239,7 +239,6 @@ class Instance:
         self.init_vertex = self.graph.get_vertex(
             '[{row},{column}]'.format(**nav_setup['position']))
 
-    # methods to access the internal state and its characteristics
     def get_initial(self): 
         """Returns <Vertex> specified to be initial position."""
         return self.init_vertex
@@ -248,47 +247,14 @@ class Instance:
         """Return the seed for the NavInst."""
         return self.seed
 
-#del#    def get_weight(self, vertex): 
-#del#        """Returns weight of $vertex."""
-#del#        return vertex.get_weight()
-#del#        return self.vertex_weight[vertex]
-#del#        # post-restructure: unnecessary (Vertex.get_weight())
-
-#del#    def get_nexts_from(self, vertex): 
-#del#        """Return dict of possible moves from $vertex
-#del#        where directions are keys and destinations are values;
-#del#        current pos is default vertex."""
-#del#        return vertex.get_nexts()
-#del#        return self.vertex_nexts[vertex]
-#del#        # post-restructure: unnecessary (Vertex.get_nexts(), graph.get_nexts())
-
-#del#    def get_dest_from_via(self, vertex, direction):
-#del#        """Returns would-be dest of moving in $direction from $vertex."""
-#del#        return vertex.get_dest_via(direction)
-#del#        return self.get_nexts_from(vertex)[direction]
-#del#        # post-restructure: unnecessary (Vertex.get_next_via(), graph.get_next_via())
-    
-#del#    def get_dir_to_dest(self, vertex, destination):
-#del#        """Returns direction to get from $vertex to $destination."""
-#del#        nexts = self.get_nexts_from(vertex)
-#del#        if destination in nexts.viewvalues():
-#del#            # iterate through: no worry about cost because len(nexts[dir]) <= 3
-#del#            for direction in nexts: 
-#del#                if destination == nexts[direction]: return direction
-#del#        # post-restructure: unnecessary (Vertex.get_dir_to_next(), graph.get_dir_to_next())
-
 class State:
     """An immutable State within an Instance."""
     
     def __init__(self, instance,
             vertex=None, count_credits=None, count_moves=None,
             prev_state=None, dir_from_prev=None):
-        #    pos=None, creds=None, moves=None, 
-        #    prev=None, prev_dir=None):
         """Contruct a NavState: track NavInst, pos, #credits, #moves, $prev."""
-        # NOTE: must implement deepcopy() to make NavState mutable
-        # adding $nav_inst to NavState does not add significant overhead
-        # because $self.nav_inst binds to an existing NavInst
+        # NOTE: if NavState is made mutable, MUST implement deepcopy()
         self.instance = instance
         self.vertex = instance.get_initial() if vertex == None else vertex
         self.count_credits = 0 if count_credits == None else count_credits
@@ -298,7 +264,7 @@ class State:
         self.dir_from_prev = dir_from_prev
  
     def __str__(self):
-        return ' %7s; avg is %5.2f (%3d creds in %2d moves)' % (
+        return '%7s with avg of %5.2f (%3d creds in %2d moves)' % (
             self.get_vertex(), self.get_avg_creds(), 
             self.get_n_creds(), self.get_n_moves())
 
@@ -326,14 +292,6 @@ class State:
     def get_nexts(self):
         """Return the tuple of direct successors of <Vertex> $self.vertex."""
         return self.vertex.get_nexts()
-    
-#    def get_dest_via(self, direction):
-#        """Return would-be dest of moving in $direction from $self.pos"""
-#        return self.vertex.get_next_via(direction)
-
-#    def get_dir_to(self, destination):
-#        """Return direction to get from $self.pos to $destination."""
-#        return self.vertex.get_dir_to_next(destination)
     
     def get_avg_creds(self):
         """Returns average discredits earned per move."""
@@ -382,9 +340,9 @@ class State:
 class Agent:
     """Agent to play a Instance."""
     
-    def __init__(self, nav_inst, nav_state=None, debug=False):
-        self.nav_inst = nav_inst
-        self.nav_state = State(nav_inst) if nav_state == None else nav_state
+    def __init__(self, instance, state=None, debug=False):
+        self.instance = instance
+        self.state = State(instance) if state == None else state
         self.debug = debug
     
     def __str__(self):
@@ -407,7 +365,7 @@ class Agent:
         # if passed a $direction
         if type(moves) in (str, unicode):
             #l.log('sending command', 'navigation lane direction=%s' % moves)
-            return self.nav_inst.try_command(
+            return self.instance.try_command(
                 'navigation lane direction=%s' % moves)
         # if passed list of moves
         elif type(moves) is list:
@@ -422,37 +380,27 @@ class Agent:
     
     def cmd_nav_leave(self):
         """Command agent to leave navigation."""
-        return self.nav_inst.try_command('navigation leave')
-    
-    def prompt_cmd_nav_leave(self):
-        """Command agent to leave navigation, pause for user acknowledgment."""
-        #if self.debug: raw_input('press enter to leave')
-        self.cmd_nav_leave()
+        return self.instance.try_command('navigation leave')
     
     def nav_random(self):
         self.alg_log_start('random walk')
-        # NOTE: warning, this binds $s to $self.nav_state
+        # NOTE: warning, this binds $s to $self.state
         # if State is changed to be mutable, $s must be a deepcopy()
-        s = self.nav_state
+        s = self.state
         moves = []
         while s.get_nexts() != {} : 
             if self.debug: s.log()
             successors = s.get_nexts()
             s = sucessors[randint(0, len(successors)-1)]
-#del#            direction = next_dirs.keys()[randint(0, len(next_dirs)-1)]
-#del#            # bind $s to a new NavState
-#del#            s = s.get_next_state(direction)
-#del#            moves.append((direction, s))
-#del#        self.cmd_nav_move(moves)
         self.alg_log_end('random walk')
         self.prompt_cmd_nav_leave()
     
     # this is a hill-climber, not a greedy-best-first
     def nav_greedy_best_first(self):
         self.alg_log_start('greedy best first')
-        # NOTE: warning, this binds $s to $self.nav_state
+        # NOTE: warning, this binds $s to $self.state
         # if State is changed to be mutable, $s must be a deepcopy()
-        s = self.nav_state
+        s = self.state
         moves = []
         while s.get_nexts() != {} : 
             if self.debug: s.log()
@@ -469,53 +417,58 @@ class Agent:
     # generic tree search algorithm:
     # 
     # walk = initial_state
-    # frontier = some_data_struct //queue, stack, priority queue, heap
+    # frontier = DataStructure()
+    # frontier.add(walk)
     # 
     # while (goal not met) or (frontier not empty):
     #   frontier.insertset(walk.nexts)
     #   walk <- frontier.next
     # 
-    # if (goal met)
-    #   return goal met
+    # if (goal met): return goal state
     # 
-    # =================================================================
-    # 
-    # // maybe explored should be a 3-tuple? directed edges and avg creds by following thru
-    # explored = {} 
-    # // keys   : explored $vertex
-    # // values : ($avg, $path) where $avg is avg creds earned on $path to get to $vertex
-    # // unique (key, value) pairs because you overwrite value if new $avg is better
-    # 
-    # paths = [] ## want each path to be ($avg_creds, $moves) where $moves is list of dirs
-    # // is this one even necessary?
+    # =========================================================================
     #
-    # walk = initial_state
-    # frontier_edges = some_data_struct (queue, stack, priority queue)
-    # frontier_edges.insertset(initial_state.next_edges)
+    # extending this to a graph search:
+    #
+    # explored = {} 
+    # // keys   : <Vertex>
+    # // values : <State>
+    # // unique (key, value) pairs because you overwrite with better <State>s
+    # // do not need to record paths if <State> points to best predecessor
+    # 
+    # walk_state = initial_state
+    # frontier = DataStructure()
+    # frontier.add(walk_state)
     # 
     # while frontier not empty:
-    #   walk <- frontier_edges.next.tail
-    #   frontier_edges.insertset(walk.next_edges)
+    #   walk_state <- frontier.rm()
     #
-    #   // if $walk has already been explored:
-    #   if walk is in explored:
-    #       //overwrite path to walk if new path has better $avg creds
-    #       if new_path_to_walk better than explored_path_to_walk:
-    #           explored_path_to_walk <- new_path_to_walk
+    #   // if current <Vertex> has been explored
+    #   if walk_state.get_vertex() is in explored:
+    #       // and path corresp. to current <State> is better than recorded <State>
+    #       if current average > recorded average:
+    #           explored[<Vertex>] <- walk_state
+    #       // but if not, do not continue expanding $walk_state
     #       else:
-    #           discard new_path_to_walk
-    #   // if $walk hasn't been explored:
+    #           continue
+    #   // if current <Vertex> unexplored, record current <State>
     #   else:
-    #       //mark walk as explored
-    #       explored.insert(path_to_walk)
+    #       explored[<Vertex>] <- walk_state
     #
-
-    # NEEDS OPTIMIZATION
-    # hits segfaults on any NavInst's outside of dis
+    # <State> records best path from predecessor
+    # this *must* be the case:
+    #   say $stateA and $stateB are <State>s at the same <Vertex>
+    #       and followed different paths to <Vertex>, so $stateA is better
+    #   then $stateB will *not* be expanded because $explored dictates thus
+    #   
+    #   if $stateB found first, and its successors are added to the frontier
+    #       before $stateA is found, then if $stateB successors are expanded,
+    #       they will always be overwritten by the corresp. $stateA successor
+    #
     # potential optimizations:
+    #   do not expand successors if their $prev_state has been overwritten
     #   don't add edges if current best avg impossble to beat
-    #   try doing a custom version using a priority queue?
-    #       python best bet is using a heapq
+    #   try doing a custom version using a priority queue? (use heapq)
     def nav_generic_first_by_struct(self, data_struct):
         alg_names = {
             'Queue':'gen. breadth first', 
@@ -524,54 +477,47 @@ class Agent:
         alg_name = alg_names[data_struct.name()]
         self.alg_log_start(alg_name)
         
-        # NavState currently points to its ancestor
-        # maybe a more efficient way to represent the directed edges?
-        
-        # track explored vertices as { $vertex : ($avg_creds, NavEdge) }
-        # track explored vertices as { $vertex : $vertex -> best NavState }
+        # track explored vertices as { <Vertex> : <State> }
+        #   overwriting a <State> if new <State> is better
         # track the best path according to its terminal node
-        s = self.nav_state
+        s = self.state
         frontier = data_struct
         frontier.add(s)
         explored = {}
-        best_end = s
+        best_terminal_state = s
 
         seed = s.instance.get_seed()
         
-        # standard searches will use while not goal_reached()
-        # not possible here: there is no goal test for NavStates; you can only
-        #   choose the best of the many NavStates that are generated
-        #   e.g., goal NavState might have nonempty set of available moves
-        #           because continuing to move would lower the average
+        # note: Navigation is curious because there is no way to test if a
+        #       specific <State> is a goal <State>, because the goal of
+        #       <copenhagent> is to maximize credits earned per move, so you
+        #       can only find a goal state once the set of best terminal
+        #       <State>s is generated (by finding the best of the set)
         #
-        # -> optimize by determining when an average cannot be beat
-        # ====> use NavState.get_n_moves()
+        # e.g., goal <State> might have successor <State>s
+        #       because continuing to move would lower the average
         #
-        # keep going if you can find a better average
-        #   use unexplored paths as a proxy therefor
+        # NOTE: what if even the best Navigation solution would lower
+        #       the agent's current average credits?
         while not frontier.is_empty():
             # $s is the current NavState being expanded
             s = frontier.rm()
-
-            # is s.prev the most optimal path?
-            # if not should discard
-
-            # if current NavState has not yet been explored
-            #       OR has been explored & NavEdge is better path
-            # use s.get_pos() as key bc can have different $s at same vertex
+            
+            # if current <State> better than recorded <State> for <Vertex>
             if (s.get_vertex() not in explored 
                     or s.get_avg_creds() > explored[s.get_vertex()]['avg']): 
 
-                # overwrite or create item with NavEdge in value 
+                # overwrite or create entry corresponding to <Vertex>
                 explored[s.get_vertex()] = {'avg':s.get_avg_creds()}
 
-                # if current NavEdge is better than current best path
-                if s.get_avg_creds() > best_end.get_avg_creds(): best_end = s
+                # record best <State> to end at if discovered
+                if s.get_avg_creds() > best_terminal_state.get_avg_creds(): 
+                    best_terminal_state = s
+            # otherwise, skip to next item in frontier
             else:
                 continue
-            # add a continue 
 
-            #if self.debug: log('', s)
+            #if self.debug: log('current NavState', s)
             # add potential next moves to the frontier
             for result in s.get_next_states():
                 # never add a vertex with weight < seed to the frontier
@@ -579,12 +525,12 @@ class Agent:
                 elif self.debug: l.log('searching', 'discarding %s' % result)
         
         # log last edge in best path
-        if self.debug: log('found best end state', best_end)
+        if self.debug: log('found best end state', best_terminal_state)
         
         # regenerate best path from its terminal edge
         # work backwards until NavState.prev == (initial_state.prev = None)
         hist = structs.Stack()
-        s = best_end
+        s = best_terminal_state
         while None != s.get_prev_state():
             hist.push(s)
             s = s.get_prev_state()
@@ -595,10 +541,11 @@ class Agent:
             self.cmd_nav_move(s.get_dir_from_prev())
             if self.debug: 
                 log('moving from', 
-                      '%7s to %7s via %5s' % (
+                      '%7s to %7s via %5s to earn %3d' % (
                         s.get_prev_state().get_vertex(),
                         s.get_vertex(),
-                        s.get_dir_from_prev()
+                        s.get_dir_from_prev(),
+                        s.get_weight()
                         )
                      )
 
