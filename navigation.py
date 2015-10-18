@@ -9,7 +9,7 @@ class Vertex:
     
     def __init__(self, graph, nav_json_graph, key):
         """Construct the vertex corresponding to $key in $nav_graph."""
-        self.nav_graph = graph
+        self.graph = graph
         self.vertex_key = key
         nav_vertex = nav_json_graph['vertices'][self.vertex_key]
         self.nav_row = nav_vertex['row']
@@ -31,7 +31,10 @@ class Vertex:
         return hash(self.get_key())
 
     def __eq__(self, other):
-        return self.get_key() == other.get_key()
+        try:
+            return self.get_key() == other.get_key()
+        except AttributeError:
+            return False
 
     def get_key(self):
         """Return the string repr of the vertex."""
@@ -41,13 +44,34 @@ class Vertex:
         """Return the row number of the vertex."""
         return self.nav_row
 
-    def get_col(self):
+    def get_column(self):
         """Return the column number of the vertex."""
         return self.nav_column
 
     def get_weight(self):
         """Return the weight of the vertex."""
         return self.nav_weight
+
+    def get_nexts(self):
+        """Return the tuple of direct successors of <Vertex> $self."""
+        return self.graph.get_nexts(self)
+
+    def get_prev_via(self, direction):
+        """Return the <Vertex> $prev with DirEdge($prev, $self, $dir)."""
+        return self.graph.get_prev_via(self, direction)
+
+    def get_dir_from_prev(self, prev_vertex):
+        """Return the $dir in DirEdge($prev, $self, $dir)."""
+        return self.graph.get_dir_from_prev(self, prev_vertex)
+
+    def get_next_via(self, direction):
+        """Return the <Vertex> $next with DirEdge($self, $next, $dir)."""
+        return self.graph.get_next_via(self, direction)
+
+    def get_dir_to_next(self, next_vertex):
+        """Return the $dir in DirEdge($self, $next, $dir)."""
+        return self.graph.get_dir_to_next(self, next_vertex)
+
 
 
 class DirEdge:
@@ -57,6 +81,10 @@ class DirEdge:
         """Initialize the directed edge."""
         (self.tail, self.head) = (tail, head)
         self.direction = direction
+
+    def __str__(self):
+        return '%-7s - %5s - %+7s' % (
+            self.get_tail(), self.get_dir(), self.get_head())
 
     def get_tail(self):
         """Return the tail of the directed edge."""
@@ -80,30 +108,31 @@ class Graph:
         """Parse the JSON to save the graph of Navigation.Instance."""
         self.nav_json_graph = nav_json_graph
         self.vertex_table = {
-            vertex_key:Vertex(nav_graph, vertex_key)
-            for vertex_key in nav_graph['vertices'] 
+            vertex_key:Vertex(self, nav_json_graph, vertex_key)
+            for vertex_key in nav_json_graph['vertices'] 
         }
 
-        edges_by_tail = nav_graph['edges']
+        edges_by_tail = nav_json_graph['edges']
         edges = tuple(frozenset().union(
-            frozenset(
-                DirEdge(self.vertices[tail_key],
-                        self.vertices[edges_by_tail][tail_key][direction],
+            *(frozenset().union(
+                DirEdge(self.get_vertex(tail_key),
+                        self.get_vertex(edges_by_tail[tail_key][direction]),
                         direction)
-                for direction in edges[tail_key]
-            ) for tail_key in self.vertex_table))
+                for direction in edges_by_tail[tail_key]
+              ) for tail_key in self.vertex_table if tail_key in edges_by_tail)
+            ))
 
         def gen_edge_table_by(vertex_fxn, tup_edge_keys):
             edge_table = {
-                vertex:tuple(e for e in edges if vertex_fxn())
+                vertex:tuple(e for e in edges if vertex_fxn(e) == vertex)
                 for vertex in self.vertex_table.viewvalues()
             }
             for vertex in edge_table:
                 e_tuple = edge_table[vertex]
-                edge_table[vertex] = {'edge':e}
+                edge_table[vertex] = {'edges':e_tuple}
                 for e in e_tuple: 
-                    for key in tup_edge_keys: edge_table[vertex][key()] = e
-                #edge_table[vertex].update(key():e for key in gen_value_keys})
+                    for key in tup_edge_keys: edge_table[vertex][key(e)] = e
+            return edge_table
 
         self.edges_by_tail = gen_edge_table_by(
             lambda e:e.get_tail(),
@@ -137,7 +166,7 @@ class Graph:
             pass
         finally:
             return tuple(
-                e.get_tail() for e in self.edges_by_head[vertex]['edge']
+                e.get_tail() for e in self.edges_by_head[vertex]['edges']
             )
 
     def get_nexts(self, vertex):
@@ -147,29 +176,35 @@ class Graph:
         except KeyError:
             pass
         finally:
+            #print type(vertex), vertex
+            #print self.edges_by_tail[vertex]
             return tuple(
-                e.get_head() for e in self.edges_by_tail[vertex]['edge']
+                e.get_head() for e in self.edges_by_tail[vertex]['edges']
             )
 
     def get_prev_via(self, vertex, direction):
         """Return the <Vertex> $prev with DirEdge($prev, $vertex, $dir)."""
         try: return self.edges_by_head[vertex][direction].get_prev()
-        except KeyError: return None
+        except KeyError as e: 
+            print 'get_prev_via()', type(e).__name__, e.message
 
-    def get_dir_for_prev(self, vertex, prev):
+    def get_dir_from_prev(self, vertex, prev_vertex):
         """Return the $dir in DirEdge($prev, $vertex, $dir)."""
-        try: return self.edges_by_head[vertex][prev].get_dir()
-        except KeyError: return None
+        try: return self.edges_by_head[vertex][prev_vertex].get_dir()
+        except KeyError as e: 
+            print 'get_dir_from_prev()', type(e).__name__, e.message
 
     def get_next_via(self, vertex, direction):
         """Return the <Vertex> $next with DirEdge($vertex, $next, $dir)."""
         try: return self.edges_by_tail[vertex][direction].get_head()
-        except KeyError: return None
+        except KeyError as e: 
+            print 'get_next_via()', type(e).__name__, e.message
 
-    def get_dir_for_next(self, vertex, next):
+    def get_dir_to_next(self, vertex, next_vertex):
         """Return the $dir in DirEdge($vertex, $next, $dir)."""
-        try: return self.edges_by_head[vertex][next].get_dir()
-        except KeyError: return None
+        try: return self.edges_by_tail[vertex][next_vertex].get_dir()
+        except KeyError as e: 
+            print 'get_dir_to_next()', type(e).__name__, e.message
 
 
 class Instance:
@@ -188,11 +223,8 @@ class Instance:
         # begin parsing the FullResponse
         nav_setup = r.json()['state']['navigation'][self.token]
         nav_config = nav_setup['config']
-        nav_graph = nav_setup['graph']
+        self.graph = Graph(nav_setup['graph'])
         
-        # store $seed, which is the default weight for nav vertices
-        self.seed = nav_config['seed']
-
         if debug and False:
             print '=== dumping $nav_config ==='
             dump_json(nav_config, override=True)
@@ -203,147 +235,153 @@ class Instance:
             print '=== showing $nav_setup[position] ==='
             dump_json(nav_setup['position'], override=True)
             
-        # create dicts $vertex_weight and $vertex_moves with keys $vertex
-        # '[{row},{column}]' is the format of $vertex
-        self.vertex_weight = {}
-        self.vertex_nexts = {}
-        for vertex in nav_graph['vertices']:
-            self.vertex_weight[vertex] = nav_graph['vertices'][vertex]['weight']
-            self.vertex_nexts[vertex] = {}
-            if vertex in nav_graph['edges']: 
-                self.vertex_nexts[vertex] = nav_graph['edges'][vertex]
+        # store $seed, which is the default weight for nav vertices
+        self.seed = nav_config['seed']
+        self.init_vertex = self.graph.get_vertex(
+            '[{row},{column}]'.format(**nav_setup['position']))
 
-        self.init_vertex = '[{row},{column}]'.format(**nav_setup['position'])
-    
     # methods to access the internal state and its characteristics
-    def get_init_pos(self): 
-        """Returns initial position of agent as '[r, c]'."""
+    def get_initial(self): 
+        """Returns <Vertex> specified to be initial position."""
         return self.init_vertex
 
     def get_seed(self):
         """Return the seed for the NavInst."""
         return self.seed
 
-    def get_weight(self, vertex): 
-        """Returns weight of $vertex."""
-        return self.vertex_weight[vertex]
+#del#    def get_weight(self, vertex): 
+#del#        """Returns weight of $vertex."""
+#del#        return vertex.get_weight()
+#del#        return self.vertex_weight[vertex]
+#del#        # post-restructure: unnecessary (Vertex.get_weight())
 
-    def get_nexts_from(self, vertex): 
-        """Return dict of possible moves from $vertex
-        where directions are keys and destinations are values;
-        current pos is default vertex."""
-        return self.vertex_nexts[vertex]
+#del#    def get_nexts_from(self, vertex): 
+#del#        """Return dict of possible moves from $vertex
+#del#        where directions are keys and destinations are values;
+#del#        current pos is default vertex."""
+#del#        return vertex.get_nexts()
+#del#        return self.vertex_nexts[vertex]
+#del#        # post-restructure: unnecessary (Vertex.get_nexts(), graph.get_nexts())
 
-    def get_dest_from_via(self, vertex, direction):
-        """Returns would-be dest of moving in $direction from $vertex."""
-        return self.get_nexts_from(vertex)[direction]
+#del#    def get_dest_from_via(self, vertex, direction):
+#del#        """Returns would-be dest of moving in $direction from $vertex."""
+#del#        return vertex.get_dest_via(direction)
+#del#        return self.get_nexts_from(vertex)[direction]
+#del#        # post-restructure: unnecessary (Vertex.get_next_via(), graph.get_next_via())
     
-    def get_dir_to_dest(self, vertex, destination):
-        """Returns direction to get from $vertex to $destination."""
-        nexts = self.get_nexts_from(vertex)
-        if destination in nexts.viewvalues():
-            # iterate through: no worry about cost because len(nexts[dir]) <= 3
-            for direction in nexts: 
-                if destination == nexts[direction]: return direction
+#del#    def get_dir_to_dest(self, vertex, destination):
+#del#        """Returns direction to get from $vertex to $destination."""
+#del#        nexts = self.get_nexts_from(vertex)
+#del#        if destination in nexts.viewvalues():
+#del#            # iterate through: no worry about cost because len(nexts[dir]) <= 3
+#del#            for direction in nexts: 
+#del#                if destination == nexts[direction]: return direction
+#del#        # post-restructure: unnecessary (Vertex.get_dir_to_next(), graph.get_dir_to_next())
 
 class State:
     """An immutable State within an Instance."""
     
-    def __init__(self, nav_inst, 
-            pos=None, creds=None, moves=None, 
-            prev=None, prev_dir=None):
+    def __init__(self, instance,
+            vertex=None, count_credits=None, count_moves=None,
+            prev_state=None, dir_from_prev=None):
+        #    pos=None, creds=None, moves=None, 
+        #    prev=None, prev_dir=None):
         """Contruct a NavState: track NavInst, pos, #credits, #moves, $prev."""
         # NOTE: must implement deepcopy() to make NavState mutable
         # adding $nav_inst to NavState does not add significant overhead
         # because $self.nav_inst binds to an existing NavInst
-        self.nav_inst = nav_inst
-        self.pos = self.nav_inst.get_init_pos() if pos == None else pos
-        self.creds = 0 if creds == None else creds
-        self.moves = 0 if moves == None else moves
+        self.instance = instance
+        self.vertex = instance.get_initial() if vertex == None else vertex
+        self.count_credits = 0 if count_credits == None else count_credits
+        self.count_moves = 0 if count_moves == None else count_moves
         # save previous state
-        self.prev = prev
-        self.prev_dir = prev_dir
+        self.prev_state = prev_state
+        self.dir_from_prev = dir_from_prev
  
     def __str__(self):
-        return self.get_pos()
+        return self.vertex.__str__()
 
     #def get_deepcopy(self):
     #    """Return deepcopy of internal state."""
     #    # MUST implement if NavState is made mutable
     #    return self
     
-    def get_pos(self):
+    def get_vertex(self):
         """Returns current position."""
-        return self.pos
+        return self.__str__()
     
     def get_n_creds(self):
         """Returns number of earned discredits."""
-        return self.creds
+        return self.count_credits
 
     def get_n_moves(self):
         """Returns number of moves made."""
-        return self.moves
+        return self.count_moves
     
-    def get_weight(self, vertex=None):
-        """Returns weight of $vertex if specified, else $self.pos."""
-        if vertex == None: return self.nav_inst.get_weight(self.pos)
-        else: return self.nav_inst.get_weight(vertex)
+    def get_weight(self):
+        """Returns weight of $self.vertex."""
+        return self.vertex.get_weight()
 
     def get_nexts(self):
-        """Return dict of possible moves from $self.pos
-        where directions are keys and destinations are values."""
-        return self.nav_inst.get_nexts_from(self.pos)
+        """Return the tuple of direct successors of <Vertex> $self.vertex."""
+        return self.vertex.get_nexts()
  
+    # TODO: replace with DirEdge __str__(), only has one callback
     def get_edge_to(self):
         """Return directed edge to $self.pos with dir as 3-tuple."""
-        return tuple(s.get_prev(), s, s.get_prev_dir())
+        return (self.get_prev_state(), self, self.get_dir_from_prev())
     
-    def get_dest_via(self, direction):
-        """Return would-be dest of moving in $direction from $self.pos"""
-        return self.nav_inst.get_dest_from_via(self.pos, direction)
+#    def get_dest_via(self, direction):
+#        """Return would-be dest of moving in $direction from $self.pos"""
+#        return self.vertex.get_next_via(direction)
 
-    def get_dir_to(self, destination):
-        """Return direction to get from $self.pos to $destination."""
-        return self.nav_inst.get_dir_to_dest(self.pos, destination)
+#    def get_dir_to(self, destination):
+#        """Return direction to get from $self.pos to $destination."""
+#        return self.vertex.get_dir_to_next(destination)
     
     def get_avg_creds(self):
         """Returns average discredits earned per move."""
         try: return 1.0*self.get_n_creds()/self.get_n_moves()
         except ZeroDivisionError: return 0.0
     
-    def get_avg_if_move(self, direction):
-        """Returns what get_avg_creds() would if agent moves in $direction."""
-        return self.get_result(direction).get_avg_creds()
-    
-    def get_prev(self):
+    def get_prev_state(self):
         """Return the ancestor NavState (returns None if none exists)."""
-        return self.prev
+        return self.prev_state
     
-    def get_prev_dir(self):
+    def get_dir_from_prev(self):
         """Return the direction from self.get_prev() to $self."""
-        if self.prev_dir != None: return self.prev_dir
-        elif self.get_prev() != None: return self.get_prev().get_dir_to(self)
+        if self.dir_from_prev != None: return self.dir_from_prev
+        elif self.get_prev() != None:
+            return self.vertex.get_dir_from_prev(self.get_prev().vertex)
 
-    def get_result(self, direction):
-        """Return state resulting from moving in $direction."""
-        dest = self.get_nexts()[direction]
+    def get_next_state(self, direction=None, next_vertex=None):
+        """Return state resulting from move in $direction or to $next_vertex."""
+        if (direction, next_vertex).count(None) != 1:
+            raise ValueError(
+                'get_next_state() takes either $direction or $next_vertex'
+            )
+        if next_vertex == None: 
+            next_vertex = self.vertex.get_next_via(direction)
+        if direction == None: 
+            direction = self.vertex.get_dir_to_next(next_vertex)
+            
         return State(
-            self.nav_inst, 
-            pos=dest,
-            creds = self.get_n_creds() + self.nav_inst.get_weight(dest),
-            moves = self.get_n_moves() + 1,
-            prev = self, prev_dir = direction)
+            self.instance, 
+            vertex = next_vertex,
+            count_credits = self.get_n_creds() + next_vertex.get_weight(),
+            count_moves = self.get_n_moves() + 1,
+            prev_state = self, dir_from_prev = direction)
 
-    def get_results(self):
-        """Return dict of possible resulting states from $self.pos
-        where directions are keys and destinations are values."""
-        return {d:self.get_result(d) for d in self.get_nexts()}
+    def get_next_states(self):
+        """Return tuple of possible successor states of $self."""
+        return tuple(self.get_next_state(vertex) 
+                     for vertex in self.vertex.get_nexts())
 
     def log(self):
         """Log $self (55 chars long)."""
         #print '='*55
         print ' %7s; avg creds is %5.2f (%3d creds in %2d moves)' % (
-            self.get_pos(), self.get_avg_creds(), 
+            self.get_vertex(), self.get_avg_creds(), 
             self.get_n_creds(), self.get_n_moves())
 
 class Agent:
@@ -375,6 +413,7 @@ class Agent:
         """Command agent to make a move in navigation."""
         # if passed a $direction
         if type(moves) in (str, unicode):
+            #print 'navigation lane direction=%s' % moves
             return self.nav_inst.try_command(
                 'navigation lane direction=%s' % moves)
         # if passed list of moves
@@ -394,7 +433,7 @@ class Agent:
     
     def prompt_cmd_nav_leave(self):
         """Command agent to leave navigation, pause for user acknowledgment."""
-        if self.debug: raw_input('press enter to leave')
+        #if self.debug: raw_input('press enter to leave')
         self.cmd_nav_leave()
     
     def nav_random(self):
@@ -408,7 +447,7 @@ class Agent:
             next_dirs = s.get_nexts()
             direction = next_dirs.keys()[randint(0, len(next_dirs)-1)]
             # bind $s to a new NavState
-            s = s.get_result(direction)
+            s = s.get_next_state(direction)
             moves.append((direction, s))
         self.cmd_nav_moves(moves)
         self.log_alg_end('random walk')
@@ -426,7 +465,7 @@ class Agent:
             # sorted() sorts in ascending order, so grab last element
             direction = sorted(nexts.viewkeys(), key=s.get_avg_if_move)[-1]
             # binds $s to a new NavState
-            s = s.get_result(direction)
+            s = s.get_next_state(direction)
             moves.append((direction, s))
         self.cmd_nav_moves(moves)
         self.log_alg_end('greedy best first')
@@ -502,7 +541,7 @@ class Agent:
         explored = {}
         best_end = s
 
-        seed = s.nav_inst.get_seed()
+        seed = s.instance.get_seed()
         
         # standard searches will use while not goal_reached()
         # not possible here: there is no goal test for NavStates; you can only
@@ -529,11 +568,11 @@ class Agent:
             # if current NavState has not yet been explored
             #       OR has been explored & NavEdge is better path
             # use s.get_pos() as key bc can have different $s at same vertex
-            if (s.get_pos() not in explored 
-                    or s.get_avg_creds() > explored[s.get_pos()]['avg']): 
+            if (s.get_vertex() not in explored 
+                    or s.get_avg_creds() > explored[s.get_vertex()]['avg']): 
 
                 # overwrite or create item with NavEdge in value 
-                explored[s.get_pos()] = {'avg':s.get_avg_creds()}
+                explored[s.get_vertex()] = {'avg':s.get_avg_creds()}
 
                 # if current NavEdge is better than current best path
                 if s.get_avg_creds() > best_end.get_avg_creds(): best_end = s
@@ -544,7 +583,7 @@ class Agent:
             #if self.debug: s.log()
             #if self.debug: print id(s)
             # add potential next moves to the frontier
-            for result in s.get_results().viewvalues():
+            for result in s.get_next_states():
                 # never add a vertex with weight < seed to the frontier
                 if result.get_weight() >= seed:  frontier.add(result)
                 elif self.debug:    print 'not adding %s' % result
@@ -556,16 +595,17 @@ class Agent:
         # work backwards until NavState.prev == (initial_state.prev = None)
         hist = structs.Stack()
         s = best_end
-        while None != s.get_prev():
+        while None != s.get_prev_state():
             hist.push(s)
-            s = s.get_prev()
+            s = s.get_prev_state()
 
         # follow the best path forward
         while not hist.is_empty():
             s = hist.pop()
             #if self.debug: print s.get_prev_dir()
-            self.cmd_nav_moves(s.get_prev_dir())
-            #if self.debug: print '>>> %7s >>> %7s via %5s' % (s.get_edge_to())
+            self.cmd_nav_moves(s.get_dir_from_prev())
+            if self.debug: 
+                print '>>> %7s >>> %7s via %5s' % (s.get_edge_to())
 
         self.log_alg_end(alg_name)
 
