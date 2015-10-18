@@ -384,25 +384,6 @@ def ai_nav(shell):
 
     nav_agent = Logger(nav_setup).f_output()
     Logger(nav_solve) 
-#    border = '%s:%s' % ('='*11, '='*19)
-#    timetable_entry = '| %8.4f : nav ai %9s |'  
-#
-#    print_timetable(border)
-#    start = time.clock()
-#    print_timetable(timetable_entry % (start, '<start>'))
-#    
-#    nav_inst = navigation.Instance(shell, debug=debug)
-#    nav_agent = navigation.Agent(nav_inst, debug=debug)
-#    
-#    data_struct = (structs.Queue(), structs.Stack())[0]
-#    nav_agent.nav_generic_first_by_struct(data_struct)
-#
-#    end = time.clock()
-#    print_timetable(timetable_entry % (end, '<end>'))
-#    print_timetable(border)
-#    print_timetable(timetable_entry % (end-start, '<runtime>'))
-#    print_timetable(border)
-#
     nav_agent.cmd_nav_leave()
 
 ##### AI FUNCTIONS <END> #####
@@ -443,7 +424,7 @@ def main():
         sys.exit(0)
 
     opened = Shell(token=token) if name == None else Shell(name=name)
-    opened.run(parser.parse_args().command)
+    opened.run(parser.parse_args().command.strip())
 
     sys.exit(0)
 
