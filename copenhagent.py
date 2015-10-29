@@ -52,6 +52,8 @@ class CustomProgramError(Exception):
 class Shell:
     """Open a shell to control agents in the copenhagent environment."""
 
+    # TODO: this should eventually be implemented as a lookup table with the 
+    #       actual URLs for polling the API as keys
     api_commands = {
         'map': {
             'enter': {},
@@ -381,9 +383,9 @@ def navigation_ai(shell):
         return nav_agent
 
     def nav_solve():
-#        return nav_agent.nav_generic_breadth_first()
-        return nav_agent.nav_generic_depth_first()
-#        return nav_agent.nav_generic_greedy_best_first()
+        return nav_agent.nav_generic_breadth_first()
+#del#        return nav_agent.nav_generic_depth_first()
+#del#        return nav_agent.nav_generic_greedy_best_first()
 
     nav_agent = Logger(nav_setup).f_output()
     Logger(nav_solve) 
