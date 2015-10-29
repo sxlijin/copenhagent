@@ -249,7 +249,7 @@ class Instance:
         return self.seed
 
 class State:
-    """An immutable State within an Instance."""
+    """An immutable State within an Instance. Tracks path to a <Vertex>."""
     
     def __init__(self, instance,
             vertex=None, count_credits=None, count_actions=None,
@@ -556,13 +556,11 @@ class Agent:
 
                 if s > best_terminal_state: best_terminal_state = s
 
-        # more efficient to ~seq search in the loop, presumably becaues of
-        # o(1) hashtable lookups and compares that mean you check less states
-        # so this is actually *less* efficient:
-        # single trial of 100 runs gives 0.2109698s average below,
-        # versus 0.19308929 average for checking in the loop
-        #best_terminal_state = max(explored.viewvalues())
-
+        # best_terminal_state determined by a pseudo seq search in the loop,
+        # since runtime testing shows that it has a 20ms advantage over using
+        # max(explored.viewvalues()) after loop termination: presumably because
+        # o(1) hashtable lookups and fewer compares occur during the loop
+        
         # log last edge in best path
         best_terminal_state.count_actions += 1 # n_actions++ for nav/leave()
         if self.debug: log('found best end state', best_terminal_state)
