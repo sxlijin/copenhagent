@@ -540,6 +540,12 @@ class Agent:
 
             # if current <State> better than recorded <State> for <Vertex>
             for s in curr.get_next_states():
+
+#                log('bool1', s.get_vertex() not in explored)
+#                log('bool2', s.get_prev_state() == explored.get(s.get_prev_vertex(), None))
+#                if s.get_vertex() in explored: log('bool3', s > explored[s.get_vertex()])
+#                print
+
                 if (s.get_vertex() not in explored 
                         or s.get_prev_state() == explored.get(
                                                     s.get_prev_vertex(), 
@@ -548,6 +554,7 @@ class Agent:
     
                     # overwrite or create entry corresponding to <Vertex>
                     explored[s.get_vertex()] = s #{'avg':s.get_avg_creds()}
+                    frontier.add(s)
     
                     # record best <State> to end at if discovered
                     if s > best_terminal_state: best_terminal_state = s
