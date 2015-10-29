@@ -382,7 +382,8 @@ def navigation_ai(shell):
 
     def nav_solve():
 #        return nav_agent.nav_generic_breadth_first()
-        return nav_agent.nav_generic_greedy_best_first()
+        return nav_agent.nav_generic_depth_first()
+#        return nav_agent.nav_generic_greedy_best_first()
 
     nav_agent = Logger(nav_setup).f_output()
     Logger(nav_solve) 
