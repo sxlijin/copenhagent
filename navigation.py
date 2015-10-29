@@ -332,7 +332,10 @@ class State:
 
     def get_prev_vertex(self):
         """Return the <Vertex> of the ancestor <State>, None if none exists."""
-        return self.get_prev_state().get_vertex()
+        try:
+            return self.get_prev_state().get_vertex()
+        except AttributeError:
+            return None
     
     def get_dir_from_prev(self):
         """Return the direction from self.get_prev() to $self."""
@@ -517,6 +520,7 @@ class Agent:
         frontier = data_struct
         frontier.add(s)
         explored = {}
+        explored[None] = None
 
         # initialize best <State> found so far
         best_terminal_state = s
@@ -527,48 +531,31 @@ class Agent:
         #       specific <State> is a goal <State>, because the goal of
         #       <copenhagent> is to maximize credits earned per move, so you
         #       can only find a goal state once the set of best terminal
-        #       <State>s is generated (by finding the best of the set)
+        #       <State>s is generated, by choosing the best vertex to end at;
+        #       this happens to mean that it is also possible to end at the
+        #       initial vertex if the seed is well below the current average
         #
         # e.g., goal <State> might have successor <State>s
         #       because continuing to move would lower the average
-        #
-        # NOTE: what if even the best Navigation solution would lower
-        #       the agent's current average credits?
         while not frontier.is_empty():
-            # $s is the current NavState being expanded
+            # $curr is the current NavState being expanded
             curr = frontier.rm()
 
             # if current <State> better than recorded <State> for <Vertex>
+            # note: the other way to process successor nodes is to add them to
+            #       the frontier, then remove them and determine whether they 
+            #       should be expanded; this is inefficient because of the
+            #       read/write operations to $explored and $frontier
             for s in curr.get_next_states():
-
-#                log('bool1', s.get_vertex() not in explored)
-#                log('bool2', s.get_prev_state() == explored.get(s.get_prev_vertex(), None))
-#                if s.get_vertex() in explored: log('bool3', s > explored[s.get_vertex()])
-#                print
-
-                if (s.get_vertex() not in explored 
-                        or s.get_prev_state() == explored.get(
-                                                    s.get_prev_vertex(), 
-                                                    None)
-                        or s > explored[s.get_vertex()]):
-    
-                    # overwrite or create entry corresponding to <Vertex>
-                    explored[s.get_vertex()] = s #{'avg':s.get_avg_creds()}
-                    frontier.add(s)
-    
-                    # record best <State> to end at if discovered
-                    if s > best_terminal_state: best_terminal_state = s
-                    
-                # otherwise, skip to next item in frontier
-                else:
+                # skip 
+                if s.get_vertex() in explored and s <= explored[s.get_vertex()]:
                     continue
 
-            #if self.debug: log('current <State>', s)
-            # add potential next moves to the frontier
-                # never add a vertex with weight < seed to the frontier
-            #    if result.get_weight() >= seed:  frontier.add(result)
-            #    elif False and self.debug: log('searching', 'discarding %s' % result)
-        
+                explored[s.get_vertex()] = s
+                frontier.add(s)
+
+                if s > best_terminal_state: best_terminal_state = s
+
         # more efficient to ~seq search in the loop, presumably becaues of
         # o(1) hashtable lookups and compares that mean you check less states
         # so this is actually *less* efficient:
@@ -585,27 +572,23 @@ class Agent:
         hist = structs.Stack()
         s = best_terminal_state
 
-        if s > self.state:
-            while None != s.get_prev_state():
-                hist.push(s)
-                s = s.get_prev_state()
-    
-            # follow the best path forward
-            while not hist.is_empty():
-                s = hist.pop()
-                self.cmd_nav_move(s.get_dir_from_prev())
-                if False and self.debug: 
-                    log('moving from', 
-                          '%7s to %7s via %5s to earn %3d' % (
-                            s.get_prev_vertex(),
-                            s.get_vertex(),
-                            s.get_dir_from_prev(),
-                            s.get_weight()
-                            )
-                         )
-        else:
-            log('not moving', 's is worse than current state')
-            log('current state', s)
+        while None != s.get_prev_state():
+            hist.push(s)
+            s = s.get_prev_state()
+
+        # follow the best path forward
+        while not hist.is_empty():
+            s = hist.pop()
+            self.cmd_nav_move(s.get_dir_from_prev())
+            if False and self.debug: 
+                log('moving from', 
+                      '%7s to %7s via %5s to earn %3d' % (
+                        s.get_prev_vertex(),
+                        s.get_vertex(),
+                        s.get_dir_from_prev(),
+                        s.get_weight()
+                        )
+                     )
 
         self.alg_log_end(alg_name)
 
@@ -614,10 +597,31 @@ class Agent:
         self.nav_generic_first_by_struct(structs.Queue())
 
     def nav_generic_depth_first(self):
-        """Runs a depth first search using a generic search with a stack."""
+        """
+        Runs a depth first search using a generic search with a stack.
+
+        Results of one trial at noerrebrogade:
+        
+        [ 0.28362500 ] gen. greedy best fir : START
+        [ 277.21395900 ] found best end state :  [4,18] with avg of  4.34 (23562 creds in 5424 mov
+        [ 277.25458000 ] gen. greedy best fir : END
+        [ 277.25473800 ] nav_solve      <end> :
+        [ 277.25477300 ] nav_solve  <runtime> :  nav_solve() runtime was 276.97124300
+        """
         self.nav_generic_first_by_struct(structs.Stack())
 
     def nav_generic_greedy_best_first(self):
-        """Runs a greedy best first search using a generic search with a PQ."""
+        """
+        Runs a greedy best first search using a generic search with a PQ.
+        
+        Results of one trial at noerrebrogade:
+
+        [ 0.33325400 ] nav_solve    <start> :
+        [ 0.33337000 ]     gen. depth first : START
+        [ 565.80734400 ] found best end state : [10,18] with avg of  4.35 (23703 creds in 5445 mov
+        [ 565.84639700 ]     gen. depth first : END
+        [ 565.84652300 ] nav_solve      <end> :
+        [ 565.84654700 ] nav_solve  <runtime> :  nav_solve() runtime was 565.51326900
+        """
         key = lambda x: -x.get_avg_creds()
         self.nav_generic_first_by_struct(structs.PriorityQueue(key))
