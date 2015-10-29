@@ -110,7 +110,7 @@ class PriorityQueue(GenericStruct):
         If $iterable True, instead calls add_iterable($item).
         """
         if iterable == None: 
-            if self.key != None: item = (key(item), item)
+            if self.key != None: item = (self.key(item), item)
             self.heapq.heappush(self._heap, item)
         elif iterable == True: 
             self.add_iterable(item)

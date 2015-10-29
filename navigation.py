@@ -504,7 +504,8 @@ class Agent:
     def nav_generic_first_by_struct(self, data_struct):
         alg_names = {
             'Queue':'gen. breadth first', 
-            'Stack':'gen. depth first'
+            'Stack':'gen. depth first',
+            'PriorityQueue':'gen. greedy best first'
         }
         alg_name = alg_names[data_struct.name()]
         self.alg_log_start(alg_name)
@@ -513,10 +514,6 @@ class Agent:
         #   overwriting a <State> if new <State> is better
         # track the best path according to its terminal node
         s = self.state
-
-        if self.debug: log('after nav/enter()', s)
-
-        s.count_actions += 1 # increment to account for nav/leave()
         frontier = data_struct
         frontier.add(s)
         explored = {}
@@ -571,44 +568,48 @@ class Agent:
         # versus 0.19308929 average for checking in the loop
         #best_terminal_state = max(explored.viewvalues())
 
-        # log last <State> in best path
-        if self.debug: 
-            # also considers if nav/enter() -> nav/leave() is the best option
-            log('best terminal state', best_terminal_state)
+        # log last edge in best path
+        best_terminal_state.count_actions += 1 # n_actions++ for nav/leave()
+        if self.debug: log('found best end state', best_terminal_state)
         
         # regenerate best path from its terminal edge
         # work backwards until NavState.prev == (initial_state.prev = None)
         hist = structs.Stack()
         s = best_terminal_state
 
-        #if s > self.state:
-        while None != s.get_prev_state():
-            hist.push(s)
-            s = s.get_prev_state()
-
-        # follow the best path forward
-        while not hist.is_empty():
-            s = hist.pop()
-            self.cmd_nav_move(s.get_dir_from_prev())
-            if False and self.debug: 
-                log('moving from', 
-                      '%7s to %7s via %5s to earn %3d' % (
-                        s.get_prev_vertex(),
-                        s.get_vertex(),
-                        s.get_dir_from_prev(),
-                        s.get_weight()
-                        )
-                     )
-        #else:
-        #    log('not moving', 's is worse than current state')
-        #    log('current state', s)
+        if s > self.state:
+            while None != s.get_prev_state():
+                hist.push(s)
+                s = s.get_prev_state()
+    
+            # follow the best path forward
+            while not hist.is_empty():
+                s = hist.pop()
+                self.cmd_nav_move(s.get_dir_from_prev())
+                if False and self.debug: 
+                    log('moving from', 
+                          '%7s to %7s via %5s to earn %3d' % (
+                            s.get_prev_vertex(),
+                            s.get_vertex(),
+                            s.get_dir_from_prev(),
+                            s.get_weight()
+                            )
+                         )
+        else:
+            log('not moving', 's is worse than current state')
+            log('current state', s)
 
         self.alg_log_end(alg_name)
 
     def nav_generic_breadth_first(self):
         """Runs a breadth first search using a generic search with a queue."""
-        self.nav_generic_first_by_struct(Queue())
+        self.nav_generic_first_by_struct(structs.Queue())
 
     def nav_generic_depth_first(self):
         """Runs a depth first search using a generic search with a stack."""
-        self.nav_generic_first_by_struct(Stack())
+        self.nav_generic_first_by_struct(structs.Stack())
+
+    def nav_generic_greedy_best_first(self):
+        """Runs a greedy best first search using a generic search with a PQ."""
+        key = lambda x: -x.get_avg_creds()
+        self.nav_generic_first_by_struct(structs.PriorityQueue(key))

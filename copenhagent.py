@@ -380,10 +380,9 @@ def navigation_ai(shell):
         nav_agent = navigation.Agent(nav_inst, debug=debug)
         return nav_agent
 
-    data_struct = (structs.Queue(), structs.Stack())[0]
-    
     def nav_solve():
-        return nav_agent.nav_generic_first_by_struct(data_struct)
+        #return nav_agent.nav_generic_breadth_first()
+        return nav_agent.nav_generic_greedy_best_first()
 
     nav_agent = Logger(nav_setup).f_output()
     Logger(nav_solve) 
