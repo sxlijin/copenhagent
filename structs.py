@@ -7,6 +7,7 @@ class GenericStruct(object):
     def __init__(self):
         self._generic = []
         self._name = 'Generic'
+        self._mutate_index = float('nan')
     
     def name(self):
         """Returns name of data structure."""
@@ -20,6 +21,42 @@ class GenericStruct(object):
         """Returns number of elements in data structure."""
         return len(self._generic)
 
+    def add(self, item, iterable=None):
+        """
+        Add $item to the data structure.
+        If $iterable True, instead calls add_iterable($item).
+        """
+        if iterable == None: self._generic.append(item)
+        elif iterable == True: self.add_iterable(item)
+    
+    def add_iterable(self, item):
+        """Attempt to iterate through $item and add all."""
+        try:
+            self._generic.extend(item)
+        except TypeError:
+            print "%s.add_iterable() called on non-iterable." % self.name()
+    
+    def rm(self):
+        """
+        Remove from data structure and return the removed element.
+        Raises IndexError if data structure is empty.
+        """
+        try:
+            return self._generic.pop(self._mutate_index)
+        except IndexError:
+            raise IndexError('%s is empty' % self.name())
+
+    def peek(self):
+        """
+        Return the item that is next to be removed.
+        Raises IndexError if data structure is empty.
+        """
+        try:
+            return self._generic[self._mutate_index]
+        except IndexError:
+            raise IndexError('%s is empty' % self.name())
+
+
 
 class Queue(GenericStruct):
     """Implements a standard FIFO queue."""
@@ -27,31 +64,15 @@ class Queue(GenericStruct):
     def __init__(self):
         """
         Initialize the queue.
-        Also binds self.add() and self.rm() to queue insertion and deletion.
+        Also binds queue-specific operation names to insertion and deletion.
         """
         super(Queue, self).__init__()
-        self._queue = self._generic
         self._name = 'Queue'
-        (self.add, self.rm) = (self.enqueue, self.dequeue)
-
-    def enqueue(self, item, iterable=None):
-        """Enqueue $item; if $iterable True, does enqueue_iterable($item)."""
-        if iterable == None: self._queue.append(item)
-        elif iterable == True: self.enqueue_iterable(item)
-    
-    def enqueue_iterable(self, item):
-        """Attempt to iterate through $item and enqueue all."""
-        try:
-            self._queue.extend(item)
-        except TypeError:
-            print "Queue.enqueue_iterable() called on non-iterable."
-    
-    def dequeue(self):
-        """Dequeue and return; raises IndexError if queue is empty."""
-        if self.is_empty():
-            raise IndexError('%s is empty' % self.name())
-        else:   
-            return self._queue.pop(0)
+        self._mutate_index = 0
+        
+        self.enqueue = self.add
+        self.enqueue_iterable = self.add_iterable
+        self.dequeue = self.rm
 
 
 class Stack(GenericStruct):
@@ -60,28 +81,73 @@ class Stack(GenericStruct):
     def __init__(self):
         """
         Initialize the stack.
-        Also binds self.add() and self.rm() to stack insertion and deletion.
+        Also binds stack-specific operation names to insertion and deletion.
         """
         super(Stack, self).__init__()
-        self._stack = self._generic
         self._name = 'Stack'
-        (self.add, self.rm) = (self.push, self.pop)
+        self._mutate_index = -1
+
+        self.push = self.add
+        self.push_iterable = self.add_iterable
+        self.pop = self.rm
+
+
+class PriorityQueue(GenericStruct):
+    """Implements a heap with an optional key() function."""
     
-    def push(self, item, iterable=None):
-        """Push $item; if $iterable True, does push_iterable($item)."""
-        if iterable == None: self._stack.append(item)
-        elif iterable == True: self.push_iterable(item)
-    
-    def push_iterable(self, item):
-        """Attempt to iterate through $item and push all."""
+    def __init__(self, key=None):
+        """Initialize the heap."""
+        super(PriorityQueue, self).__init__()
+        self._heap = self._generic
+        self._name = 'PriorityQueue'
+        self.key = key
+
+        self.heapq = __import__('heapq')
+
+    def add(self, item, iterable=None):
+        """
+        Add $item to the PriorityQueue.
+        If $iterable True, instead calls add_iterable($item).
+        """
+        if iterable == None: 
+            if self.key != None: item = (key(item), item)
+            self.heapq.heappush(self._heap, item)
+        elif iterable == True: 
+            self.add_iterable(item)
+                        
+    def add_iterable(self, item):
+        """Attempt to iterate through $item and add all."""
         try:
-            self._stack.extend(item)
+            if self.size() < len(item):
+                self._heap.extend(item)
+                self.heapq.heapify(item)
+            else:
+                for i in item: self.heapq.heappush(self._heap, i)
         except TypeError:
-            print 'Stack.push_iterable() called on non-iterable.'
-    
-    def pop(self):
-        """Pop and return; raises IndexError if empty."""
-        if self.is_empty():
-            raise IndexError('%s is empty' % self.name())
-        else:   
-            return self._stack.pop()
+            print "%s.add_iterable() called on non-iterable." % self.name()
+
+    def rm(self):
+        """
+        Remove smallest element from the PriorityQueue and return it.
+        Raises IndexError if PriorityQueue is empty.
+        """
+        try:
+            if self.key == None:
+                return self.heapq.heappop(self._heap)
+            else:
+                return self.heapq.heappop(self._heap)[1]
+        except IndexError:
+            raise IndexError('Heap is empty.')
+
+    def peek(self):
+        """
+        Return the smallest element in the PriorityQueue.
+        Raises IndexError if PriorityQueue is empty.
+        """
+        try:
+            if self.key == None:
+                return self._heap[0]
+            else:
+                return self._heap[0][1]
+        except IndexError:
+            raise IndexError('Heap is empty.')
