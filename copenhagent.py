@@ -340,9 +340,9 @@ class Logger:
     """Builds a formatter for messages logged to the console."""
 
     def __init__(self, function=None):
-        if function != None: self.log_function(function)
+        if function != None: self.log_runtime_of(function)
 
-    def log_function(self, function):
+    def log_runtime_of(self, function):
         """Run $function and log its start, end, and runtime."""
         f_name = function.__name__
         f_event_str = '%-10.10s %s' % (function.__name__, '%9.9s')
@@ -356,11 +356,13 @@ class Logger:
                  '%10.10s() runtime was %10.8f' % (f_name, runtime))
 
     def log(self, event, message=''):
+        """Log to console in specific format: [time] event : message."""
         t = time.clock()
         print '[ %10.8f ] %20.20s : %-50.50s' % (t, event, message)
         return t
 
     def f_output(self):
+        """Return the output of the function called in log_runtime_of."""
         return self.function_output
 
 ### NAVIGATION
