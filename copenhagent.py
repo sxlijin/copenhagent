@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 
-import readline, sys, argparse
+import readline, sys, argparse, logger
 import requests, json
-import time
 from random import randint
 
 import structs, navigation
@@ -337,35 +336,6 @@ class Agent:
         r = requests.get(api_url, headers=self.header)
         self.update_with(r)
         return r
-        
-class Logger:
-    """Builds a formatter for messages logged to the console."""
-
-    def __init__(self, function=None):
-        if function != None: self.log_runtime_of(function)
-
-    def log_runtime_of(self, function):
-        """Run $function and log its start, end, and runtime."""
-        f_name = function.__name__
-        f_event_str = '%-10.10s %s' % (function.__name__, '%9.9s')
-
-        start = self.log(f_event_str % '<start>')
-        self.function_output = function()
-        end = self.log(f_event_str % '<end>')
-        
-        runtime = end-start
-        self.log(f_event_str % '<runtime>', 
-                 '%10.10s() runtime was %10.8f' % (f_name, runtime))
-
-    def log(self, event, message=''):
-        """Log to console in specific format: [time] event : message."""
-        t = time.clock()
-        print '[ %10.8f ] %20.20s : %-50.50s' % (t, event, message)
-        return t
-
-    def f_output(self):
-        """Return the output of the function called in log_runtime_of."""
-        return self.function_output
 
 ### NAVIGATION
 
@@ -387,8 +357,8 @@ def navigation_ai(shell):
 #del#        return nav_agent.nav_generic_depth_first()
 #del#        return nav_agent.nav_generic_greedy_best_first()
 
-    nav_agent = Logger(nav_setup).f_output()
-    Logger(nav_solve) 
+    nav_agent = logger.Logger(nav_setup).f_output()
+    logger.Logger(nav_solve) 
     nav_agent.cmd_nav_leave()
 
 ##### AI FUNCTIONS <END> #####

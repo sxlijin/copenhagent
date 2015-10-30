@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 
-# OIJGOSDIJFOIEWJFOIEJ
 
 win_from = {
     'n': [    'papersoccer play direction=ne',

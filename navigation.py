@@ -1,10 +1,8 @@
 #! /usr/bin/env python
 
-import structs
+import structs, logger
 
-from copenhagent import Logger
-l = Logger()
-log = l.log
+log = logger.Logger().log
 
 def log_error(event, e):
     log(event, '%s, %s' % (type(e).__name__, e.message))
@@ -418,36 +416,25 @@ class Agent:
         return self.instance.try_command('navigation leave')
     
     def nav_random(self):
+        """Navigation algorithm: random walk."""
         self.alg_log_start('random walk')
-        # NOTE: warning, this binds $s to $self.state
-        # if State is changed to be mutable, $s must be a deepcopy()
         s = self.state
         moves = []
-        while s.get_nexts() != {} : 
+        while s.get_next_states() != () : 
             if self.debug: s.log()
-            successors = s.get_nexts()
+            successors = s.get_next_states()
             s = sucessors[randint(0, len(successors)-1)]
         self.alg_log_end('random walk')
-        self.prompt_cmd_nav_leave()
     
-    # this is a hill-climber, not a greedy-best-first
-    def nav_greedy_best_first(self):
-        self.alg_log_start('greedy best first')
-        # NOTE: warning, this binds $s to $self.state
-        # if State is changed to be mutable, $s must be a deepcopy()
+    def nav_hill_climb(self):
+        """Navigation search algorithm: hill climbing."""
+        self.alg_log_start('hill climb')
         s = self.state
-        moves = []
-        while s.get_nexts() != {} : 
-            if self.debug: s.log()
-            nexts = s.get_nexts()
-            # sorted() sorts in ascending order, so grab last element
-            direction = sorted(nexts.viewkeys(), key=s.get_avg_if_move)[-1]
-            # binds $s to a new NavState
-            s = s.get_next_state(direction)
-            moves.append((direction, s))
-        self.cmd_nav_move(moves)
-        self.alg_log_end('greedy best first')
-        self.prompt_cmd_nav_leave()
+        while s.get_next_states() != () : 
+            s = max(s.get_next_states())
+            if s < s.get_prev_state(): break
+            self.cmd_nav_move(s)
+        self.alg_log_end('hill climb')
 
     # generic tree search algorithm:
     # 
@@ -503,8 +490,12 @@ class Agent:
     # potential optimizations:
     #   do not expand successors if their $prev_state has been overwritten
     #   don't add edges if current best avg impossble to beat
-    #   try doing a custom version using a priority queue? (use heapq)
     def nav_generic_first_by_struct(self, data_struct):
+        """
+        Navigation search algorithm: generic form, whichever $data_struct it 
+        uses for the frontier determines its efficiency.
+        """
+
         alg_names = {
             'Queue':'gen. breadth first', 
             'Stack':'gen. depth first',
