@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+import readline, re
+
 class CustomProgramError(Exception):
     def __init__(self, value):
         self.value = value
@@ -49,6 +51,11 @@ class Shell:
         self.active_agent = None
         self.set_active_agent(token, name)
 
+        # configure readline
+        readline.parse_and_bind('set bell-style none')
+        readline.parse_and_bind("tab: complete")
+        readline.set_completer(autocomplete)
+
     def set_active_agent(self, token=None, name=None):
         """Change the agent which the shell is actively controlling."""
         try:
@@ -59,7 +66,7 @@ class Shell:
             
     ############################################################################
     #
-    #  Constructor & mutators.
+    #  Controllers that handle shell operations.
  
     def run(self, cmd=None):
         """
@@ -77,14 +84,6 @@ class Shell:
             except (AttributeError, ValueError) as e:
                 log_error(e)
 
-    def do_api_command(self, argv):
-        """Returns <requests> received from telling $agent to poll the API."""
-        if self.active_agent == None:
-            raise ValueError('not currently controlling an agent')
-        return self.active_agent.poll_api(
-            api_url_for('%s/%s?' % tuple(argv[:2]), '&'.join(argv[2:]))
-        )
-        
     def run_custom_program(self, argstr):
         is_custom = True
 
@@ -100,10 +99,49 @@ class Shell:
         elif False: pass
         else: raise CustomProgramError('run_custom_program(): not a custom program')
 
+    def autocomplete(arg, state):
+        """
+        A completer() function to be used by readline for the purposes of this
+        interactive shell.
+        """
+        argstr = readline.get_line_buffer()[:-len(arg)]
+        argv = re.split('[ =]', readline.get_line_buffer())
+        n_args = len(argv)
+    
+        opt_set = api_commands
+        for i_arg in range(n_args - 1):
+            try:
+                opt_set = opt_set[argv[i_arg]]
+            except (IndexError, KeyError):
+                opt_set = []
+    
+        fill_char = ' ' if n_args < 3 else ('', '=')[n_args == 3]
+        opts = ['%s%s' % (opt, fill_char) 
+                for opt in opt_set if opt.startswith(arg)]
+    
+        try:
+            return opts[state]
+        except IndexError:
+            return None
+    
+    ############################################################################
+    #
+    #  Controllers, specifically those which access the API.
+
+    def do_api_command(self, argv):
+        """Returns <requests> received from telling $agent to poll the API."""
+        if self.active_agent == None:
+            raise ValueError('not currently controlling an agent')
+        return self.active_agent.poll_api(
+            api_url_for('%s/%s?' % tuple(argv[:2]), '&'.join(argv[2:]))
+        )
+        
+
     def try_command(self, argstr):
         """
         Return <requests> from executing shell command $argstr.
-        If executing a repeated command, returns the last <requests>."""
+        If executing a repeated command, returns the last <requests>.
+        """
         # assume $argstr is a <str> but allow it to be a <list> as well
         try:
             argv = argstr.split()
