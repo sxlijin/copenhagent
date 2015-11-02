@@ -1,11 +1,7 @@
 #! /usr/bin/env python
 
-import structs, logger
-
-log = logger.Logger().log
-
-def log_error(event, e):
-    log(event, '%s, %s' % (type(e).__name__, e.message))
+import structs
+from logger import *
 
 class Vertex:
     """
@@ -190,28 +186,28 @@ class Graph:
         try: 
             return self.edges_by_head[vertex][direction].get_prev()
         except KeyError as e:
-            log_error('get_prev_via()', e)
+            log_error(e, 'get_prev_via()')
 
     def get_dir_from_prev(self, vertex, prev_vertex):
         """Return the $dir in DirEdge($prev, $vertex, $dir)."""
         try:
             return self.edges_by_head[vertex][prev_vertex].get_dir()
         except KeyError as e: 
-            log_error('get_dir_from_prev()', e)
+            log_error(e, 'get_dir_from_prev()')
 
     def get_next_via(self, vertex, direction):
         """Return the <Vertex> $next with DirEdge($vertex, $next, $dir)."""
         try:
             return self.edges_by_tail[vertex][direction].get_head()
         except KeyError as e: 
-            log_error('get_next_via()', e)
+            log_error(e, 'get_next_via()')
 
     def get_dir_to_next(self, vertex, next_vertex):
         """Return the $dir in DirEdge($vertex, $next, $dir)."""
         try:
             return self.edges_by_tail[vertex][next_vertex].get_dir()
         except KeyError as e: 
-            log_error('get_dir_to_next()', e)
+            log_error(e, 'get_dir_to_next()')
 
 
 class Instance:
