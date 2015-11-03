@@ -1,8 +1,10 @@
 #! /usr/bin/env python
 
-import sys, copenhagent, bestpaths
+import sys
+import bestpaths
+import shell
 
-shell = copenhagent.Shell(name='auton')
+shell = shell.Shell(name='auton')
 agent = shell.active_agent
 
 r = shell.try_command('map enter')
