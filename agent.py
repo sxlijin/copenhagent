@@ -2,7 +2,7 @@
 
 import requests
 
-from logger import *
+from lib.logger import *
 
 class Agent:
     """Controls an agent in the copenhagent environment."""
@@ -44,6 +44,7 @@ class Agent:
         Executes environment/agent/say('python connected').
         Returns the generated <requests> object.
         """
+        log('>BINDING<', 'agentToken: %s' % self.agent_token)
         return self.say('python connected')
  
 
@@ -52,6 +53,7 @@ class Agent:
         Executes environment/agent/say('python disconnected').
         Returns the generated <requests> object.
         """
+        log('>RELEASING<', 'agentToken: %s' % self.agent_token)
         return self.say('python disconnected')
     
 

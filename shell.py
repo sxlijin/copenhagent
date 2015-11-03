@@ -3,7 +3,28 @@
 import readline, re
 
 import agent
-from logger import *
+from lib import navigation
+from lib.logger import *
+
+
+
+def navigation_ai(shell):
+    debug=False
+    debug=True
+    
+    def nav_setup():
+        nav_inst = navigation.Instance(shell, debug=debug)
+        nav_agent = navigation.Agent(nav_inst, debug=debug)
+        return nav_agent
+
+    def nav_solve():
+        return nav_agent.nav_generic_breadth_first()
+
+    nav_agent = log_runtime_of(nav_setup)[1]
+    log_runtime_of(nav_solve) 
+    nav_agent.cmd_nav_leave()
+
+
 
 class CustomProgramError(Exception):
     def __init__(self, value):
@@ -82,6 +103,10 @@ class Shell:
             except (AttributeError, ValueError) as e:
                 log_error(e)
 
+        self.active_agent.drop_control()
+        log('to reconnect', 
+            './copenhagent.py --agent %s' % self.active_agent.agent_token)
+
     def run_custom_program(self, argstr):
         is_custom = True
 
@@ -90,9 +115,13 @@ class Shell:
             if len(argv[2:]) != 1: is_custom = False
             else:
                 # 'copenhagent new _____'
-                if argv[1] == 'new':  self.set_active_agent(name=argv[2])
+                if argv[1] == 'new':  
+                    self.active_agent.drop_control()
+                    self.set_active_agent(name=argv[2])
                 # 'copenhagent agent _____'
-                elif argv[1] == 'agent':  self.set_active_agent(token=argv[2])
+                elif argv[1] == 'agent':
+                    self.active_agent.drop_control()
+                    self.set_active_agent(token=argv[2])
         if argstr == 'navigation ai':  navigation_ai(self)
         elif False: pass
         else: raise CustomProgramError('run_custom_program(): not a custom program')

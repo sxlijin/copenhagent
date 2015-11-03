@@ -5,8 +5,9 @@ import readline, sys, argparse
 import requests, json
 from random import randint
 
-import shell, structs, navigation
-from logger import *
+import shell
+from lib import navigation
+from lib.logger import *
 
 
 ##### GLOBAL VARIABLES <START> #####
@@ -31,23 +32,6 @@ class CustomProgramError(Exception):
     def __str__(self):
         return repr(self.value)
 ### NAVIGATION
-
-def navigation_ai(shell):
-    debug=False
-    debug=True
-    
-    def nav_setup():
-        nav_inst = navigation.Instance(shell, debug=debug)
-        nav_agent = navigation.Agent(nav_inst, debug=debug)
-        return nav_agent
-
-    def nav_solve():
-        return nav_agent.nav_generic_breadth_first()
-
-    nav_agent = log(nav_setup)[1]
-    log_runtime_of(nav_solve) 
-    nav_agent.cmd_nav_leave()
-
 ##### AI FUNCTIONS <END> #####
 
 
