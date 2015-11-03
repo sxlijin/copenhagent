@@ -2,7 +2,13 @@
 
 import sys
 import bestpaths
-import shell
+try:
+    import shell
+except ImportError:
+    sys.exit('\n%s\n\n\t%s\n' % (
+        'ERROR: can only be invoked as script using the -m flag as follows:',
+        'user@machine:.../copenhagent$ python -m ai.auton'
+        ))
 
 shell = shell.Shell(name='auton')
 agent = shell.active_agent
