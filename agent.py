@@ -22,10 +22,8 @@ class Agent:
             )
 
         if token == None:
-            self.agent_token = self.poll_api('environment/connect?name=' + name,
-                                             update=False).json()['agentToken']
-        else:
-            self.agent_token = token
+            token = self.poll_api('environment/connect?name=' + name,
+                                  update=False).json()['agentToken']
             
         self.agent_token = token
         self.header = {u'agentToken':self.agent_token}
