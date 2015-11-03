@@ -36,10 +36,6 @@ def navigation_ai(shell):
     debug=False
     debug=True
     
-    def print_timetable(text):
-        print_flag = True
-        if print_flag:  print text
-
     def nav_setup():
         nav_inst = navigation.Instance(shell, debug=debug)
         nav_agent = navigation.Agent(nav_inst, debug=debug)
@@ -47,8 +43,6 @@ def navigation_ai(shell):
 
     def nav_solve():
         return nav_agent.nav_generic_breadth_first()
-#del#        return nav_agent.nav_generic_depth_first()
-#del#        return nav_agent.nav_generic_greedy_best_first()
 
     nav_agent = log(nav_setup)[1]
     log_runtime_of(nav_solve) 
