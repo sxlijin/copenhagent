@@ -20,9 +20,10 @@ class Agent:
             raise ValueError(
                 'Must construct Agent() with either $token or $name (not both).'
             )
-        
+
         if token == None:
-            self.agent_token = self.poll_api('environment/connect?name=' + name)
+            self.agent_token = self.poll_api('environment/connect?name=' + name,
+                                             update=False).json()['agentToken']
         else:
             self.agent_token = token
             
@@ -85,19 +86,27 @@ class Agent:
         return self.poll_api('environment/agent/say?message=%s' % msg)
 
 
-    def poll_api(self, api_path):
+    def poll_api(self, api_path, update=True):
         """
         Polls the API at $api_path to control the <agent> and updates internal
         state appropriately.
 
+        If $update True, updates internal state with the <requests>.
+
         Returns the <requests> received from said API query.
         """
-        r = requests.get(api_url(api_path), headers=self.header)
-        self.update_with(r)
+        try:
+            r = requests.get(self.api_url(api_path), headers=self.header)
+        except AttributeError:
+            r = requests.get(self.api_url(api_path), headers={})
+        
+        log('REQUESTING', r.url[26:])
+
+        if update: self.update_with(r)
         return r
     
 
-    def api_url(path, query=''):
+    def api_url(self, path, query=''):
         """Returns properly formed URL from a $path and $query."""
         try:
             if path[0] == '/': path = path[1:]      # trim leading /
@@ -105,8 +114,9 @@ class Agent:
             if query[0] == '?': query = query[1:]   # trim leading ?
         except IndexError: pass
 
-        return 'http://{hostname}:3000/api/{path}?{query}'.format(
-            hostname=self.HOSTNAME,
-            path=path,
-            query=query
-            )
+        tail = '{path}?{query}'.format(path=path, query=query).split('?')
+        tail[0:2] = ['?'.join(tail[:2])]
+        tail = '&'.join(tail)
+
+        return 'http://{hostname}:3000/api/{tail}'.format(
+            hostname=self.HOSTNAME, tail=tail)

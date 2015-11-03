@@ -131,7 +131,7 @@ class Shell:
         if self.active_agent == None:
             raise ValueError('not currently controlling an agent')
         return self.active_agent.poll_api(
-            api_url_for('%s/%s?' % tuple(argv[:2]), '&'.join(argv[2:]))
+            '%s/%s?%s' % (  tuple(argv[:2]) + ('&'.join(argv[2:]),)  )
         )
         
 

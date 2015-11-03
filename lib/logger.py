@@ -2,8 +2,7 @@
 
 """Provides methods to log events and messages to the console."""
 
-import time
-
+import time, traceback
 
 def log(event, message=''):
     """
@@ -12,7 +11,7 @@ def log(event, message=''):
     Returns time.clock() at which log() was called.
     """
     t = time.clock()
-    print '[ %10.8f ] %20.20s : %-50.50s' % (t, event, message)
+    print '[ %10.8f ] %20.20s : %s' % (t, event, message)
     return t
 
 
@@ -51,3 +50,4 @@ def log_error(e, event=''):
     """
     if event == '': log(type(e).__name__, e.message)
     else:           log(event, '%s -> %s' % (type(e).__name__, e.message))
+    traceback.print_exc()
