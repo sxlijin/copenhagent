@@ -1,4 +1,4 @@
-README for copenhagent
+README.txt for copenhagent
 
 Fall 2015, DIS Artificial Intelligence, Samuel Lijin and Megan Wancura
 
@@ -28,37 +28,65 @@ optional arguments:
 
 Program architecture is as follows:
 
-lib/
-    logger.py   Contains methods used to log messages and info to STDOUT.
-    structs.py  Contains custom implementations of various data structures.
-    runtime_log_parser.py
-                Parses log of runtimes and generates summary.
+copenhagent/                Top-level package
+    __init__.py             Initialize the copenhagent package
+    __main__.py             Mimic behavior of copenhagent.py
 
-<USER>      --->    copenhagent.py  --->    shell.py    ---> agent.py
+    agent.py                Binds to and controls agents in <copenhagent>.
+    copenhagent.py          Top-level user interactive interface.
+    shell.py                Creates a shell to allow users to control agents.
+
+    command.txt             Plaintext hashtable of <shellcommand>:<apicommand>
+    megan.py                Work megan did pre-refactor
+    README.txt              
+    TODO.txt
+    
+    ai/                     Subpackage for AI routines.
+        __init__.py         
+        auton.py            Autonomous routine for an agent in <copenhagent>.
+        bestpaths.py        Identifies best paths between two locations.
+        navigation.py       Solves a <navigation> instance.
+    *** papersoccer.py      Solves a <papersoccer> instance.
+    
+    lib/                    Subpackage for program resources.
+        __init__.py 
+        logger.py           Log information to STDOUT and parse logs.
+        navigation.py       Store state of a <navigation> instance.
+        papersoccer.py      Store state of a <papersoccer> instance.
+        structs.py          Various data structures used in the program.
 
 
-agent.py
-command.txt
-copenhagent.py
-shell.py
-
-ai:
-auton.py
-bestpaths.py
-
-lib:
-logger.py
-navigation.py
-papersoccer.py
-runtime_log_parser.py
-structs.py
-
+ * <USER>
+ |
+ |   +--[ copenhagent/ ] ----+              +--[ ai/ ]------------------+  
+ |   |                       |              |                           |
+ +------> * copenhagent.py   |      +----------> * auton.py             |
+ |   |    |                  |      |       |                           | 
+ |   |    v                  |      |     -----> * bestpaths.py         |
+ +------> * shell.py         |      |    /  |                           | 
+     |    |                  |      +---+------> * navigation.py * <--------+
+     |    v                  |     /     \  |                           |   |
+     |    * agent.py * <----------+       -----> * papersoccer.py * <----------+
+     |                       |     \        |                           |   |  |
+     +-----------------------+      \       +---------------------------+   |  |
+                                     \                                      |  |
+                                      \                                     |  |
+                                       \    +--[ lib/ ]-----------------+   |  |
+                                        \   |                           |   |  |
+                                         +-----> * navigation.py * <--------+  |
+                                         |  |                           |      |
+                                         +-----> * papersoccer.py * <----------+
+                                            |                           |
+                                            |    * logger.py            | 
+                                            |                           | 
+                                            |    * structs.py           | 
+                                            |                           | 
+                                            +---------------------------+ 
+                                          
+                                                                            
 ################################################################################
 
-copenhagent.py is our working file for DIS-AI:
-
-
-to spawn an interactive shell to control an agent from the command line:
+To spawn an interactive shell to control an agent from the command line:
 
 	### create and control a new agent named $arg
 	$ python copenhagent.py --new arg
@@ -67,10 +95,9 @@ to spawn an interactive shell to control an agent from the command line:
 	$ python copenhagent.py --agent arg
 
 
-
-to control the agent from within the spawned shell, use API commands
-(note: do not mess with the spacing scheme, that will break the parser)
-example presented below
+To control the agent from within the spawned shell, use API commands, replacing
+/'s and ?'s with spaces. (Do not add spaces around ='s, parser will not handle
+those safely.) Example presented below:
 
 	disai> map enter
 	disai> map metro direction=cw
