@@ -67,7 +67,7 @@ def main():
 
     if (name, token).count(None) != 1:
         parser.print_help()
-        sys.exit(0)
+        sys.exit(1)
 
     opened = shell.Shell(token, name)
     try:
