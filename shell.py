@@ -2,6 +2,9 @@
 
 import readline, re
 
+import agent
+from logger import *
+
 class CustomProgramError(Exception):
     def __init__(self, value):
         self.value = value
@@ -18,12 +21,7 @@ class Shell:
                                                'koedbyen', 'bryggen', 'parken',
                                                'frederiksberg', 'folkentinget', 
                                                'noerrebrogade','christianshavn',
-                                               'jaegersborggade' ]
-                            [   'dis', 'koedbyen', 'frederiksberg', 'louises',
-                                'noerrebrogade', 'jaegersborggade', 'parken', 
-                                'langelinie', 'christianshavn', 'bryggen', 
-                                'folkentinget'  ]
-                    },
+                                               'jaegersborggade' ] }
         }, #--------------------------------------------------------------------
         'navigation': {     'enter': {}, 'leave': {},
                             'lane': { 'direction': ['left', 'stay', 'right'] }
@@ -54,13 +52,13 @@ class Shell:
         # configure readline
         readline.parse_and_bind('set bell-style none')
         readline.parse_and_bind("tab: complete")
-        readline.set_completer(autocomplete)
+        readline.set_completer(self.autocomplete)
 
     def set_active_agent(self, token=None, name=None):
         """Change the agent which the shell is actively controlling."""
         try:
             if self.active_agent != None: self.active_agent.drop_control()
-            self.active_agent = Agent(token, name)
+            self.active_agent = agent.Agent(token, name)
         except (AttributeError, ValueError) as e:
             log_error(e)
             
