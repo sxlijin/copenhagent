@@ -1,0 +1,3 @@
+import copenhagent
+
+copenhagent.main()
