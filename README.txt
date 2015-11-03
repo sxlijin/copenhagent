@@ -1,4 +1,59 @@
-README for copenhagent.py
+README for copenhagent
+
+Fall 2015, DIS Artificial Intelligence, Samuel Lijin and Megan Wancura
+
+This is the README for our work in developing a Python module to control an 
+agent in the copenhagent environment. It applies rudimentary AI concepts
+such as graph search algorithms (bfs, dfs, best-first, hill-climbing), 
+adversarial search algorithms (minimax, alpha-beta), and so on.
+
+################################################################################
+
+$ python copenhagent.py --help
+usage: copenhagent.py [-h] [--new <name>] [--agent <agentToken>]
+                      [--command <command>]
+
+Spawns an interactive shell with which you can control an agent in the
+copenhagent environment. Must specify either --new or --agent when calling the
+script; if neither or both are specified, program will immediately exit.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --new <name>          create a new agent with <name> and control it
+  --agent <agentToken>  control an existing agent with <agentToken>
+  --command <command>   send command to shell and close immediately after
+                        running
+
+################################################################################
+
+Program architecture is as follows:
+
+lib/
+    logger.py   Contains methods used to log messages and info to STDOUT.
+    structs.py  Contains custom implementations of various data structures.
+    runtime_log_parser.py
+                Parses log of runtimes and generates summary.
+
+<USER>      --->    copenhagent.py  --->    shell.py    ---> agent.py
+
+
+agent.py
+command.txt
+copenhagent.py
+shell.py
+
+ai:
+auton.py
+bestpaths.py
+
+lib:
+logger.py
+navigation.py
+papersoccer.py
+runtime_log_parser.py
+structs.py
+
+################################################################################
 
 copenhagent.py is our working file for DIS-AI:
 
