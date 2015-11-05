@@ -26,7 +26,7 @@ def navigation_ai(shell):
 
     nav_agent = log_runtime_of(nav_setup)[1]
     log_runtime_of(nav_solve) 
-    nav_agent.cmd_nav_leave()
+    return nav_agent.cmd_nav_leave()
 
 
 
@@ -127,7 +127,7 @@ class Shell:
                     self.active_agent.drop_control()
                     self.set_active_agent(token=argv[2])
 
-        if argstr == 'navigation ai':  navigation_ai(self)
+        if argstr == 'navigation ai':  return navigation_ai(self)
         elif False: pass
         else: raise CustomProgramError('run_custom_program(): not a custom program')
 
@@ -196,7 +196,7 @@ class Shell:
                 for i in range(n): r = self.try_command(argv)
                 return r
             try:
-                self.run_custom_program(argstr)
+                return self.run_custom_program(argstr)
             except CustomProgramError:
                 if self.verify_api_command(argv):  
                     return self.do_api_command(argv)

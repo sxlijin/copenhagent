@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import sys
+import sys, time
 import bestpaths
 try:
     import shell
@@ -28,9 +28,11 @@ def simple_auton():
     global r
     while (agent.n_actions < 5000):
         b = best_dest(r)
+
         for cmd in best_path_from_to[agent.location][best_dest(r)[-1]][-1]:
             shell.try_command(cmd)
-        shell.try_command('navigation ai')
-        r = shell.try_command('navigation leave')
+        r = shell.try_command('navigation ai')
+#        r = shell.try_command('navigation leave')
+#        time.sleep(10)
 
 simple_auton()
