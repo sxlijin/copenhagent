@@ -102,11 +102,12 @@ class Vertex:
         self.ps_column = ps_vertex['column']
 
         self.next_vertices = {}
-        for d in dirs:
+        for d in self.dirs:
             if d in ps_vertex: continue # skip if edge marked
 
-            successor_key = '[{r},{c}]'.format( r = v.get_row() + dirs[d][0],
-                                                c = v.get_column() + dirs[d][1])
+            successor = {   'row'   :   self.get_row() + self.dirs[d][0],
+                            'column':   self.get_column() + self.dirs[d][1] }
+            successor_key = '[{row},{column}]'.format(**successor)
             if successor_key in ps_vertices:
                 self.next_vertices[successor_key] = d
 
@@ -139,7 +140,7 @@ class Vertex:
 
     def get_nexts(self):
         """Return the tuple of direct successors of <Vertex> $self."""
-        return self.next_vertices.keys()
+        return self.next_vertices.items()
 
     def get_next_via(self, direction):
         """Return the <Vertex> $next with DirEdge($self, $next, $dir)."""
@@ -148,30 +149,6 @@ class Vertex:
     def get_dir_to_next(self, next_vertex):
         """Return the $dir in DirEdge($self, $next, $dir)."""
         return self.graph.get_dir_to_next(self, next_vertex)
-
-class DirEdge:
-    """Builds an immutable representation of a directed edge."""
-
-    def __init__(self, tail, head, direction):
-        """Initialize the directed edge."""
-        (self.tail, self.head) = (tail, head)
-        self.direction = direction
-
-    def __str__(self):
-        return '%-7s - %5s - %+7s' % (
-            self.get_tail(), self.get_dir(), self.get_head())
-
-    def get_tail(self):
-        """Return the tail of the directed edge."""
-        return self.tail
-
-    def get_head(self):
-        """Return the head of the directed edge."""
-        return self.head
-
-    def get_dir(self):
-        """Return the direction of the directed edge."""
-        return self.direction
 
 
 class Graph:
@@ -189,15 +166,7 @@ class Graph:
         }
 
         self.next_vertices = {}
-        for vertex in self.vertex_table.viewvalues():
-            nexts = set()
-            for d in dirs:
-                successor = '[{r},{c}]'.format( r = v.row + dirs[d][0],
-                                                c = v.column + dirs[d][1] )
-                if successor in self.vertex_table:
-                    nexts.add( tuple(d, self.vertex_table[successor]) )
-            self.next_vertices[vertex] = nexts
-           
+          
     def get_vertex(self, vertex_key):
         """Return the <Vertex> corresponding to $vertex_key."""
         return self.vertex_table[vertex_key]
@@ -234,78 +203,13 @@ class Instance:
     def get_seed(self):
         """Return the seed for the NavInst."""
         return self.seed
-
-#class State:
-#    """An immutable State within an Instance. Tracks path to a <Vertex>."""
-#    
-#    def __init__(self, instance,
-#            vertex=None, count_credits=None, count_actions=None,
-#            prev_state=None, dir_from_prev=None):
-#        """Contruct a NavState: track NavInst, pos, #credits, #moves, $prev."""
-#        # NOTE: if NavState is made mutable, MUST implement deepcopy()
-#        self.instance = instance
-#        self.vertex = instance.get_initial() if vertex == None else vertex
-#
-#        if count_credits == None:
-#            try:
-#                self.count_credits = instance.shell.active_agent.n_credits
-#            except AttributeError:
-#                self.count_credits = 0
-#        else:
-#            self.count_credits = count_credits
-#
-#        if count_actions == None:
-#            try:
-#                self.count_actions = instance.shell.active_agent.n_actions
-#            except AttributeError:
-#                self.count_actions = 0
-#        else:
-#            self.count_actions = count_actions
-#
-##        try:
-##            self.count_credits = instance.shell.active_agent.n_credits
-##            self.count_actions = instance.shell.active_agent.n_actions
-##        except AttributeError:
-##            self.count_credits = 0 if count_credits == None else count_credits
-##            self.count_actions = 0 if count_actions == None else count_actions
-#        # save previous state
-#        self.prev_state = prev_state
-#        self.dir_from_prev = dir_from_prev
-# 
-#    def __str__(self):
-#        return '%7s with avg of %5.2f (%3d creds in %2d moves)' % (
-#            self.get_vertex(), self.get_avg_creds(), 
-#            self.get_n_credits(), self.get_n_actions())
-#
-#    def __lt__(self, other): return self.get_avg_creds() < other.get_avg_creds()
-#    def __le__(self, other): return self.get_avg_creds() <= other.get_avg_creds()
-#    def __gt__(self, other): return self.get_avg_creds() > other.get_avg_creds()
-#    def __ge__(self, other): return self.get_avg_creds() >= other.get_avg_creds()
-#    # do not implement __eq__ or __ne__: want those two to default to using id()
-#
-#    #def get_deepcopy(self):
-#    #    """Return deepcopy of internal state."""
-#    #    # MUST implement if NavState is made mutable
-#    #    return self
-#    
-#    def get_vertex(self):
-#        """Returns current position."""
-#        return self.vertex
-#    
-#    def get_n_credits(self):
-#        """Returns number of earned discredits."""
-#        return self.count_credits
-#
-#    def get_n_actions(self):
-#        """Returns number of moves made."""
-#        return self.count_actions
-#    
+    
 class Agent:
     """Agent to play a Instance."""
     
     def __init__(self, instance, state=None, debug=False):
         self.instance = instance
-        self.state = State(instance) if state == None else state
+        #self.state = State(instance) if state == None else state
         self.debug = debug
     
     def __str__(self):
@@ -343,3 +247,6 @@ class Agent:
     def cmd_ps_leave(self):
         """Command agent to leave papersoccer."""
         return self.instance.try_command('papersoccer leave')
+
+    def stupid(self):
+        """Stupid try e then ne then se."""
