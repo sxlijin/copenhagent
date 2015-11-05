@@ -14,7 +14,7 @@ def random_walk(nav_agent):
         s = random.choice(s.get_next_states())
         nav_agent.cmd_nav_move(s)
     nav_agent.alg_log_end('random walk')
-    return nav_agent.cmd_nav_leave()
+#    return nav_agent.cmd_nav_leave()
 
 
 def hill_climb(nav_agent):
@@ -26,7 +26,7 @@ def hill_climb(nav_agent):
         if s < s.get_prev_state(): break
         nav_agent.cmd_nav_move(s)
     nav_agent.alg_log_end('hill climb')
-    return nav_agent.cmd_nav_leave()
+#    return nav_agent.cmd_nav_leave()
 
 
 # generic tree search algorithm:
@@ -173,7 +173,7 @@ def generic_first_by_struct(nav_agent, data_struct):
                  )
 
     nav_agent.alg_log_end(alg_name)
-    return nav_agent.cmd_nav_leave()
+#    return nav_agent.cmd_nav_leave()
 
 def generic_breadth_first(nav_agent):
     """
@@ -181,7 +181,7 @@ def generic_breadth_first(nav_agent):
     
     Uses generic search with a queue.
     """
-    return generic_first_by_struct(nav_agent, lib.structs.Queue())
+    generic_first_by_struct(nav_agent, lib.structs.Queue())
 
 def generic_depth_first(nav_agent):
     """
@@ -197,7 +197,7 @@ def generic_depth_first(nav_agent):
     [ 277.25473800 ] nav_solve      <end> :
     [ 277.25477300 ] nav_solve  <runtime> :  nav_solve() runtime was 276.97124300
     """
-    return generic_first_by_struct(nav_agent, lib.structs.Stack())
+    generic_first_by_struct(nav_agent, lib.structs.Stack())
 
 def generic_greedy_best_first(nav_agent):
     """
@@ -215,5 +215,5 @@ def generic_greedy_best_first(nav_agent):
     [ 565.84654700 ] nav_solve  <runtime> :  nav_solve() runtime was 565.51326900
     """
     key = lambda x: -x.get_avg_creds()
-    return generic_first_by_struct( nav_agent, 
+    generic_first_by_struct( nav_agent, 
                                     lib.structs.MinPriorityQueue(key) )
