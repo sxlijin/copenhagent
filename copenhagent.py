@@ -62,14 +62,20 @@ def main():
         '--command',
         metavar='<command>',
         help='send command to shell and close immediately after running')
+    parser.add_argument(
+        '--hostname',
+        metavar='<hostname>',
+        help='hostname of the copenhagent server to connect to')
     
-    (name, token) = (parser.parse_args().new, parser.parse_args().agent)
+    name = parser.parse_args().new
+    token = parser.parse_args().agent
+    hostname = parser.parse_args().hostname
 
     if (name, token).count(None) != 1:
         parser.print_help()
         sys.exit(1)
 
-    opened = shell.Shell(token, name)
+    opened = shell.Shell(token, name, hostname)
     try:
         opened.run(parser.parse_args().command.strip())
     except AttributeError:

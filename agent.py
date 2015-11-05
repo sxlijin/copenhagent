@@ -53,6 +53,11 @@ class Agent:
         """
         log('>RELEASING<', 'agentToken: %s' % self.agent_token)
         return self.say('python disconnected')
+
+
+    def get_avg_creds(self):
+        """Returns average credits which the agent has earned."""
+        return 1.0 * self.n_credits / self.n_actions
     
 
     def update_with(self, r):

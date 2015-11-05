@@ -10,7 +10,9 @@ except ImportError:
         'user@machine:.../copenhagent$ python -m ai.auton'
         ))
 
-shell = shell.Shell(name='auton')
+HOSTNAME = 'localhost'
+
+shell = shell.Shell(name='auton', hostname=HOSTNAME)
 agent = shell.active_agent
 
 r = shell.try_command('map enter')
@@ -35,7 +37,5 @@ def simple_auton():
         for cmd in best_path_from_to[agent.location][best_dest(r)[-1]][-1]:
             shell.try_command(cmd)
         r = shell.try_command('navigation ai')
-#        r = shell.try_command('navigation leave')
-#        time.sleep(10)
 
-simple_auton()
+# simple_auton()

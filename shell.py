@@ -61,7 +61,7 @@ class Shell:
     #
     #  Constructor & mutators.
 
-    def __init__(self, token=None, name=None):
+    def __init__(self, token=None, name=None, hostname=None):
         """
         Initialize the shell using either the token of an existing agent or a 
         name for a new agent which the shell will create.
@@ -72,18 +72,18 @@ class Shell:
             sys.exit('Agent to control not specified.')
 
         self.active_agent = None
-        self.set_active_agent(token, name)
+        self.set_active_agent(token, name, hostname)
 
         # configure readline
         readline.parse_and_bind('set bell-style none')
         readline.parse_and_bind("tab: complete")
         readline.set_completer(self.autocomplete)
 
-    def set_active_agent(self, token=None, name=None):
+    def set_active_agent(self, token=None, name=None, hostname=None):
         """Change the agent which the shell is actively controlling."""
         try:
             if self.active_agent != None: self.active_agent.drop_control()
-            self.active_agent = agent.Agent(token, name)
+            self.active_agent = agent.Agent(token, name, hostname)
         except (AttributeError, ValueError) as e:
             log_error(e)
             
