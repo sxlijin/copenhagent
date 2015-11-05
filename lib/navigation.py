@@ -161,6 +161,8 @@ class Graph:
 
     def get_prevs(self, vertex):
         """Return the tuple of direct predecessors of <Vertex> $vertex."""
+
+        ### TODO: uh, check why $nav_vertices is never defined?...
         try:
             vertex = self.nav_vertices[vertex]
         except KeyError:
