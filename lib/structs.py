@@ -92,21 +92,21 @@ class Stack(GenericStruct):
         self.pop = self.rm
 
 
-class PriorityQueue(GenericStruct):
+class MinPriorityQueue(GenericStruct):
     """Implements a heap with an optional key() function."""
     
     def __init__(self, key=None):
         """Initialize the heap."""
-        super(PriorityQueue, self).__init__()
+        super(MinPriorityQueue, self).__init__()
         self._heap = self._generic
-        self._name = 'PriorityQueue'
+        self._name = 'MinPriorityQueue'
         self.key = key
 
         self.heapq = __import__('heapq')
 
     def add(self, item, iterable=None):
         """
-        Add $item to the PriorityQueue.
+        Add $item to the MinPriorityQueue.
         If $iterable True, instead calls add_iterable($item).
         """
         if iterable == None: 
@@ -128,8 +128,8 @@ class PriorityQueue(GenericStruct):
 
     def rm(self):
         """
-        Remove smallest element from the PriorityQueue and return it.
-        Raises IndexError if PriorityQueue is empty.
+        Remove smallest element from the MinPriorityQueue and return it.
+        Raises IndexError if MinPriorityQueue is empty.
         """
         try:
             if self.key == None:
@@ -141,8 +141,8 @@ class PriorityQueue(GenericStruct):
 
     def peek(self):
         """
-        Return the smallest element in the PriorityQueue.
-        Raises IndexError if PriorityQueue is empty.
+        Return the smallest element in the MinPriorityQueue.
+        Raises IndexError if MinPriorityQueue is empty.
         """
         try:
             if self.key == None:

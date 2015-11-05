@@ -3,7 +3,7 @@
 import readline, re
 
 import agent
-from lib import navigation
+import lib.navigation, ai.navigation
 from lib.logger import *
 
 
@@ -13,12 +13,16 @@ def navigation_ai(shell):
     debug=True
     
     def nav_setup():
-        nav_inst = navigation.Instance(shell, debug=debug)
-        nav_agent = navigation.Agent(nav_inst, debug=debug)
+        nav_inst = lib.navigation.Instance(shell, debug=debug)
+        nav_agent = lib.navigation.Agent(nav_inst, debug=debug)
         return nav_agent
 
     def nav_solve():
-        return nav_agent.nav_generic_breadth_first()
+#        return ai.navigation.generic_greedy_best_first(nav_agent)
+#        return ai.navigation.hill_climb(nav_agent)
+#        return ai.navigation.random_walk(nav_agent)
+#        return ai.navigation.generic_depth_first(nav_agent)
+        return ai.navigation.generic_breadth_first(nav_agent)
 
     nav_agent = log_runtime_of(nav_setup)[1]
     log_runtime_of(nav_solve) 
@@ -122,6 +126,7 @@ class Shell:
                 elif argv[1] == 'agent':
                     self.active_agent.drop_control()
                     self.set_active_agent(token=argv[2])
+
         if argstr == 'navigation ai':  navigation_ai(self)
         elif False: pass
         else: raise CustomProgramError('run_custom_program(): not a custom program')
