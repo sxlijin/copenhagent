@@ -27,7 +27,10 @@ def best_dest(r):
 def simple_auton():
     global r
     while (agent.n_actions < 5000):
-        b = best_dest(r)
+        while True:
+            b = best_dest(r)
+            if b[0] > agent.get_avg_creds(): break
+            time.sleep(.1)
 
         for cmd in best_path_from_to[agent.location][best_dest(r)[-1]][-1]:
             shell.try_command(cmd)
