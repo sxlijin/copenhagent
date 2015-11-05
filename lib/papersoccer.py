@@ -89,13 +89,26 @@ class Vertex:
     Builds an immutable representation of a vertex in a Papersoccer graph.
     """
     
+    dirs = {  'n':(-1,  0),   's':(1,  0),  'w':(0, -1),  'e':(0, 1),
+             'nw':(-1, -1),  'sw':(1, -1), 'ne':(-1, 1), 'se':(1, 1)  }
+
     def __init__(self, graph, ps_json_graph, key):
         """Construct the vertex corresponding to $key in $ps_graph."""
         self.graph = graph
         self.vertex_key = key
-        ps_vertex = ps_json_graph['vertices'][self.vertex_key]
+        ps_vertices = ps_json_graph['vertices']
+        ps_vertex = ps_vertices[self.vertex_key]
         self.ps_row = ps_vertex['row']
         self.ps_column = ps_vertex['column']
+
+        self.next_vertices = {}
+        for d in dirs:
+            if d in ps_vertex: continue # skip if edge marked
+
+            successor_key = '[{r},{c}]'.format( r = v.get_row() + dirs[d][0],
+                                                c = v.get_column() + dirs[d][1])
+            if successor_key in ps_vertices:
+                self.next_vertices[successor_key] = d
 
         self.move_again = ps_vertex.get('visited', False)
 
@@ -126,7 +139,7 @@ class Vertex:
 
     def get_nexts(self):
         """Return the tuple of direct successors of <Vertex> $self."""
-        return self.graph.get_nexts(self)
+        return self.next_vertices.keys()
 
     def get_next_via(self, direction):
         """Return the <Vertex> $next with DirEdge($self, $next, $dir)."""
@@ -135,8 +148,6 @@ class Vertex:
     def get_dir_to_next(self, next_vertex):
         """Return the $dir in DirEdge($self, $next, $dir)."""
         return self.graph.get_dir_to_next(self, next_vertex)
-
-
 
 class DirEdge:
     """Builds an immutable representation of a directed edge."""
@@ -168,112 +179,28 @@ class Graph:
     Builds an immutable representation of a Papersoccer graph.
     """
 
-    dirs = { 'n':(-1,  0),   's':(1,  0),  'w':(0, -1),  'e':(0, 1),
-            'nw':(-1, -1),  'sw':(1, -1), 'ne':(-1, 1), 'se':(1, 1) }
-
     def __init__(self, ps_json_graph):
         """Parse the JSON to save the graph of Papersoccer.Instance."""
         self.ps_json_graph = ps_json_graph
+        
         self.vertex_table = {
             vertex_key:Vertex(self, ps_json_graph, vertex_key)
             for vertex_key in ps_json_graph['vertices'] 
         }
 
-        edges_by_tail = ps_json_graph['edges']
-
-#        edges = tuple(frozenset().union(
-#            *(frozenset().union(
-#                DirEdge(self.get_vertex(tail_key),
-#                        self.get_vertex(edges_by_tail[tail_key][direction]),
-#                        direction)
-#                for direction in edges_by_tail[tail_key]
-#              ) for tail_key in self.vertex_table if tail_key in edges_by_tail)
-#            ))
-#
-#        def gen_edge_table_by(vertex_fxn, tup_edge_keys):
-#            """
-#            Generate a nested hashtable of edges:
-#
-#                edge_table[key1][key2]
-#
-#            where $key1 is a <Vertex> and $key2() in $tup_edge_keys.
-#            """
-#            # determine the different edges to key each <Vertex> to
-#            edge_table = {
-#                vertex:tuple(e for e in edges if vertex_fxn(e) == vertex)
-#                for vertex in self.vertex_table.viewvalues()
-#            }
-#            # create keys in edge_table[<Vertex>] to look up the edges
-#            for vertex in edge_table:
-#                e_tuple = edge_table[vertex]
-#                edge_table[vertex] = {'edges':e_tuple}
-#                for e in e_tuple: 
-#                    for key in tup_edge_keys: edge_table[vertex][key(e)] = e
-#            return edge_table
-#
-#        self.edges_by_tail = gen_edge_table_by(
-#            lambda e:e.get_tail(),
-#            (lambda e:e.get_dir(), lambda e:e.get_head())
-#        )
-#
-#        self.edges_by_head = gen_edge_table_by(
-#            lambda e:e.get_head(),
-#            (lambda e:e.get_dir(), lambda e:e.get_tail())
-#        )
-#
+        self.next_vertices = {}
+        for vertex in self.vertex_table.viewvalues():
+            nexts = set()
+            for d in dirs:
+                successor = '[{r},{c}]'.format( r = v.row + dirs[d][0],
+                                                c = v.column + dirs[d][1] )
+                if successor in self.vertex_table:
+                    nexts.add( tuple(d, self.vertex_table[successor]) )
+            self.next_vertices[vertex] = nexts
+           
     def get_vertex(self, vertex_key):
         """Return the <Vertex> corresponding to $vertex_key."""
         return self.vertex_table[vertex_key]
-#
-#    def get_prevs(self, vertex):
-#        """Return the tuple of direct predecessors of <Vertex> $vertex."""
-#        try:
-#            vertex = self.nav_vertices[vertex]
-#        except KeyError:
-#            pass
-#        finally:
-#            return tuple(
-#                e.get_tail() for e in self.edges_by_head[vertex]['edges']
-#            )
-#
-    def get_nexts(self, vertex):
-        """Return the tuple of direct successors of <Vertex> $vertex."""
-        # get the physically possible successor vertices
-        nexts = tuple(self.get_next_via(vertex, d) for d in dirs)
-        # filter out successor vertices which it is illegal to go to
-        return tuple(n for n in nexts if (vertex, n) not in illegals)
-#
-#    def get_prev_via(self, vertex, direction):
-#        """Return the <Vertex> $prev with DirEdge($prev, $vertex, $dir)."""
-#        try: 
-#            return self.edges_by_head[vertex][direction].get_prev()
-#        except KeyError as e:
-#            log_error(e, 'get_prev_via()')
-#
-#    def get_dir_from_prev(self, vertex, prev_vertex):
-#        """Return the $dir in DirEdge($prev, $vertex, $dir)."""
-#        try:
-#            return self.edges_by_head[vertex][prev_vertex].get_dir()
-#        except KeyError as e: 
-#            log_error(e, 'get_dir_from_prev()')
-#
-    def get_next_via(self, vertex, d):
-        """Return the <Vertex> $next with DirEdge($vertex, $next, $dir)."""
-        try:
-            return self.get_vertex(
-                    '[{r},{c}]'.format( r = vertex.row + dirs[d][0],
-                                        c = vertex.column + dirs[d][1])
-                    )
-        except KeyError as e: 
-            # if retrieval attempt is for illegal or non-existent vertex
-            return None
-#
-#    def get_dir_to_next(self, vertex, next_vertex):
-#        """Return the $dir in DirEdge($vertex, $next, $dir)."""
-#        try:
-#            return self.edges_by_tail[vertex][next_vertex].get_dir()
-#        except KeyError as e: 
-#            log_error(e, 'get_dir_to_next()')
 
 
 class Instance:
@@ -373,65 +300,6 @@ class Instance:
 #        """Returns number of moves made."""
 #        return self.count_actions
 #    
-#    def get_weight(self):
-#        """Returns weight of $self.vertex."""
-#        return self.vertex.get_weight()
-#
-#    def get_nexts(self):
-#        """Return the tuple of direct successors of <Vertex> $self.vertex."""
-#        return self.vertex.get_nexts()
-#    
-#    def get_avg_creds(self):
-#        """Returns average discredits earned per move."""
-#        try: return 1.0*self.get_n_credits()/self.get_n_actions()
-#        except ZeroDivisionError: return 0.0
-#    
-#    def get_prev_state(self):
-#        """Return the ancestor <State>, None if none exists."""
-#        return self.prev_state
-#
-#    def get_prev_vertex(self):
-#        """Return the <Vertex> of the ancestor <State>, None if none exists."""
-#        try:
-#            return self.get_prev_state().get_vertex()
-#        except AttributeError:
-#            return None
-#    
-#    def get_dir_from_prev(self):
-#        """Return the direction from self.get_prev() to $self."""
-#        if self.dir_from_prev != None: return self.dir_from_prev
-#        elif self.get_prev() != None:
-#            return self.vertex.get_dir_from_prev(self.get_prev().vertex)
-#
-#    def get_next_state(self, direction=None, next_vertex=None):
-#        """Return state resulting from move in $direction or to $next_vertex."""
-#        if (direction, next_vertex).count(None) != 1:
-#            raise ValueError(
-#                'get_next_state() takes either $direction or $next_vertex'
-#            )
-#
-#        # warning: hardcoded different navigation directions
-#        if direction != None and direction not in ('left','stay','right'): 
-#            raise ValueError('received invalid $direction: %s' % direction)
-#
-#        if direction == None:
-#            direction = self.vertex.get_dir_to_next(next_vertex)
-#        if next_vertex == None: 
-#            next_vertex = self.vertex.get_next_via(direction)
-#
-#        return State(
-#            self.instance, 
-#            vertex = next_vertex,
-#            count_credits = self.get_n_credits() + next_vertex.get_weight(),
-#            count_actions = self.get_n_actions() + 1,
-#            prev_state = self, dir_from_prev = direction)
-#
-#    def get_next_states(self):
-#        """Return tuple of possible successor states of $self."""
-#        return tuple(self.get_next_state(next_vertex=vertex) 
-#                     for vertex in self.vertex.get_nexts())
-
-    
 class Agent:
     """Agent to play a Instance."""
     
