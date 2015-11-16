@@ -3,87 +3,6 @@
 import structs
 from logger import *
 
-def win_k_is_0_papersoccer():
-    win_from = {    'n': [  'papersoccer play direction=ne',
-                            'papersoccer play direction=s',
-                            'papersoccer play direction=ne',
-                            'papersoccer play direction=se',
-                            'papersoccer play direction=se' ] ,
-                    's': [  'papersoccer play direction=se',
-                            'papersoccer play direction=n',
-                            'papersoccer play direction=se',
-                            'papersoccer play direction=ne',
-                            'papersoccer play direction=ne' ]       }
-    
-    def ps_force_win_from(side):
-        for act in win_from[side]: r = try_command(act)
-        # uncomment to pause before leaving the game
-        # raw_input('press enter to leave papersoccer game ')
-        try_command('papersoccer leave')
-        return r
-        
-    def ps_play_dir(direction):
-        return try_command('papersoccer play direction=' + direction)
-    
-    def ps_win():
-        dirs = ['ne','se']
-        rand2 = randint(0,1)
-    
-        r = try_command('papersoccer enter')
-        r = ps_play_dir(dirs[rand2])
-        # try a random direction
-        if len(r.json()['action']['percepts']) == 2:
-            rand2 -= 1
-            for i in range(2): r = ps_play_dir(dirs[rand2])
-            if len(r.json()['action']['percepts']) == 2:
-                rand2 -= 1
-                r = ps_play_dir(dirs[rand2])
-                r = ps_play_dir('e')
-                r = ps_force_win_from(
-                    r.json()['action']['percepts'][0][0])
-        if r.json()['action']['percepts'] == ['w']:
-            r = ps_force_win_from(dirs[rand2][0])
-        if not SILENT: print '\n', r.json()['action']['message']
-
-def win_k_is_0_papersoccer():
-    win_from_1 = {  'n': [  'papersoccer play direction=ne',
-                            'papersoccer play direction=se',
-                            'papersoccer play direction=se' ] ,
-                    's': [  'papersoccer play direction=se',
-                            'papersoccer play direction=ne',
-                            'papersoccer play direction=ne' ]       }
-    
-    def ps_force_win_from(side):
-        for act in win_from[side]: r = try_command(act)
-        # uncomment to pause before leaving the game
-        # raw_input('press enter to leave papersoccer game ')
-        try_command('papersoccer leave')
-        return r
-        
-    def ps_play_dir(direction):
-        return try_command('papersoccer play direction=' + direction)
-    
-    def ps_win():
-        dirs = ['ne','se']
-        rand2 = randint(0,1)
-    
-        r = try_command('papersoccer enter')
-        r = ps_play_dir(dirs[rand2])
-        # try a random direction
-        if len(r.json()['action']['percepts']) == 2:
-            rand2 -= 1
-            for i in range(2): r = ps_play_dir(dirs[rand2])
-            if len(r.json()['action']['percepts']) == 2:
-                rand2 -= 1
-                r = ps_play_dir(dirs[rand2])
-                r = ps_play_dir('e')
-                r = ps_force_win_from(
-                    r.json()['action']['percepts'][0][0])
-        if r.json()['action']['percepts'] == ['w']:
-            r = ps_force_win_from(dirs[rand2][0])
-        if not SILENT: print '\n', r.json()['action']['message']
-
-
 class Vertex:
     """
     Builds an immutable representation of a vertex in a Papersoccer graph.
@@ -97,21 +16,28 @@ class Vertex:
         self.graph = graph
         self.vertex_key = key
         ps_vertices = ps_json_graph['vertices']
-        ps_vertex = ps_vertices[self.vertex_key]
-        self.ps_row = ps_vertex['row']
-        self.ps_column = ps_vertex['column']
+        ps_json_vertex = ps_vertices[self.vertex_key]
+        self.ps_row = ps_json_vertex['row']
+        self.ps_column = ps_json_vertex['column']
 
-        self.next_vertices = {}
+        self.neighbors = {}
         for d in self.dirs:
-            if d in ps_vertex: continue # skip if edge marked
+            neighbor = {   'row'   :   self.get_row() + self.dirs[d][0],
+                           'column':   self.get_column() + self.dirs[d][1] }
+            self.neighbors[d] = '[{row},{column}]'.format(**neighbor)
 
-            successor = {   'row'   :   self.get_row() + self.dirs[d][0],
-                            'column':   self.get_column() + self.dirs[d][1] }
-            successor_key = '[{row},{column}]'.format(**successor)
-            if successor_key in ps_vertices:
-                self.next_vertices[successor_key] = d
 
-        self.move_again = ps_vertex.get('visited', False)
+#unk#        self.next_vertices = {}
+#unk#        for d in self.dirs:
+#unk#            if d in ps_json_vertex: continue # skip if edge marked
+#unk#
+#unk#            successor = {   'row'   :   self.get_row() + self.dirs[d][0],
+#unk#                            'column':   self.get_column() + self.dirs[d][1] }
+#unk#            successor_key = '[{row},{column}]'.format(**successor)
+#unk#            if successor_key in ps_vertices:
+#unk#                self.next_vertices[successor_key] = d
+
+        self.move_again = ps_json_vertex.get('visited', False)
 
     def __str__(self):
         return self.vertex_key
@@ -140,15 +66,15 @@ class Vertex:
 
     def get_nexts(self):
         """Return the tuple of direct successors of <Vertex> $self."""
-        return self.next_vertices.items()
+        return self.graph.get_nexts(self)
 
     def get_next_via(self, direction):
         """Return the <Vertex> $next with DirEdge($self, $next, $dir)."""
-        return self.graph.get_next_via(self, direction)
-
-    def get_dir_to_next(self, next_vertex):
-        """Return the $dir in DirEdge($self, $next, $dir)."""
-        return self.graph.get_dir_to_next(self, next_vertex)
+        return self.neighbors[direction]
+#unk#
+#unk#    def get_dir_to_next(self, next_vertex):
+#unk#        """Return the $dir in DirEdge($self, $next, $dir)."""
+#unk#        return self.graph.get_dir_to_next(self, next_vertex)
 
 
 class Graph:
@@ -165,11 +91,55 @@ class Graph:
             for vertex_key in ps_json_graph['vertices'] 
         }
 
-        self.next_vertices = {}
+        for vertex in self.vertex_table.viewvalues():
+            vertex.neighbors = {   self.vertex_table[key] 
+                                        for key in vertex.neighbors 
+                                        if key in self.vertex_table     }
+
+        #self.visited_table = { vertex:{} for vertex in self.vertex_table }
+        self.visited_table = ps_json_graph['edges']
+
+
           
     def get_vertex(self, vertex_key):
         """Return the <Vertex> corresponding to $vertex_key."""
         return self.vertex_table[vertex_key]
+
+    def get_nexts(self, vertex):
+        # $nexts should be a list of lists of moves
+        nexts = []
+        #neighbors = [   self.vertex_table[key]
+        #                for key in vertex.neighbors.viewvalues()
+        #                if key in self.vertex_table     ]
+#
+        frontier = structs.Queue()
+        for key in vertex.neighbors.viewvalues():
+            try:    frontier.add( [self.vertex_table[key]] )
+            except KeyError: pass
+
+        while not frontier.is_empty():
+            next_seq = frontier.rm()
+            if next_seq[-1].move_again:
+                pass
+                # ???
+                # problem is same as below:
+                # how do you consider moves that have been made earlier in the sequence?
+                # maybe it would be better to adjust minimax so that it uses next.move_again
+            else:
+                nexts.append( next_seq )
+
+        
+        for key in vertex.neighbors.viewvalues():
+
+            if key not in self.vertex_table: continue
+            neighbor = self.vertex_table[key]
+            if neighbor.move_again:
+                ### below has infinite recursion problem
+                #nexts.extend(   [neighbor].extend(next_seq) 
+                #                for next_seq in self.get_nexts(neighbor)    )
+            else:
+                nexts.append( [neighbor] )
+        return nexts       
 
 
 class Instance:
@@ -193,16 +163,24 @@ class Instance:
         
         # store $seed, which is the default weight for nav vertices
         self.seed = ps_config['seed']
-        self.init_vertex = self.graph.get_vertex(
+        self.curr_vertex = self.graph.get_vertex(
             '[{row},{column}]'.format(**ps_setup['currentVertex']))
 
-    def get_initial(self): 
+    def get_current(self): 
         """Returns <Vertex> specified to be initial position."""
-        return self.init_vertex
+        return self.curr_vertex
 
     def get_seed(self):
         """Return the seed for the NavInst."""
         return self.seed
+
+    def update_with_dir(self, direction):
+        """Update the Instance and Graph by moving the ball in a given direction."""
+        dest_vertex = self.get_current().get_next_via(direction)
+        graph.visited_table[curr_vertex][dest_vertex] = 'visited'
+        graph.visited_table[dest_vertex][curr_vertex] = 'visited'
+        self.curr_vertex = dest_vertex
+        
     
 class Agent:
     """Agent to play a Instance."""
@@ -231,8 +209,12 @@ class Agent:
         """Command agent to make a move in papersoccer."""
         # if passed a $direction
         if type(moves) in (str, unicode):
-            return self.instance.try_command(
+            r = self.instance.try_command(
                 'papersoccer play direction=%s' % moves)
+            if r.status_code == 200:
+                for d in [moves].extend(r.json()['percepts']):
+                    self.instance.update_with_dir(d)
+            return r
         # if passed list of moves
         elif type(moves) is list:
             # if moves are in the form of ($direction, $dest_vertex)
