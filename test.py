@@ -33,7 +33,9 @@ def is_terminal(node):
 def utility(node, is_my_turn):
     multiplier = 1 if ( (node.get_current() == ps.goal_vertex) or
                         (node.get_nexts() == tuple() and not is_my_turn) ) else -1
-    return node.moves*multiplier 
+    utility = node.moves*multiplier 
+    print '  utility is %d for %s' % (utility, node)
+    return utility
 
 def minimax(node, is_my_turn):
     if is_terminal(node):   return utility(node, is_my_turn)
@@ -44,12 +46,46 @@ def minimax(node, is_my_turn):
         return min( minimax(next_node, is_my_turn == next_node.check_visited())
                     for next_node in node.get_nexts())
 
+def alphabeta(node, alpha, beta, is_my_turn):
+    if is_terminal(node):   return utility(node, is_my_turn)
+    if is_my_turn:
+        v = float('-inf')
+        for next_node in node.get_nexts():
+            v = max(v, alphabeta(   next_node, alpha, beta,
+                                    is_my_turn == next_node.check_visited() ))
+            alpha = max(alpha, v)
+            if beta <= alpha: break
+        return v
+    else:
+        v = float('inf')
+        for next_node in node.get_nexts():
+            v = min(v, alphabeta(   next_node, alpha, beta,
+                                    is_my_turn == next_node.check_visited() ))
+            beta = min(beta, v)
+            if beta <= alpha: break
+        return v
+    
+def dlminimax(node, is_my_turn, depth):
+    if is_terminal(node):   return utility(node, is_my_turn)
+    if depth > 10: return node.moves
+    if is_my_turn:
+        return max( dlminimax(next_node, is_my_turn == next_node.check_visited(), depth + 1)
+                    for next_node in node.get_nexts())
+    else:
+        return min( dlminimax(next_node, is_my_turn == next_node.check_visited(), depth + 1)
+                    for next_node in node.get_nexts())
+
+
+
 setup()
 show_current()
 curr_search_node().show_nexts()
 
 for next_node in curr_search_node().get_nexts():
-    print minimax(next_node, True)
+    print dlminimax(next_node, True, 0)
 
-# calling reload(test) runs __init__() again which populates w/ agent & opponent
-# to avoid this, write method in test to do stuff that doesn't get called when reload(test)
+#for next_node in curr_search_node().get_nexts():
+#    print alphabeta(next_node, float('-inf'), float('inf'), True)
+
+#for next_node in curr_search_node().get_nexts():
+#    print minimax(next_node, True)
