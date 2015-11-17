@@ -1,22 +1,24 @@
 #! /usr/bin/env python
 
+import math
 import structs
 from logger import *
+
+dirs = {  'n':(-1,  0),   's':(1,  0),  'w':(0, -1),  'e':(0, 1),
+         'nw':(-1, -1),  'sw':(1, -1), 'ne':(-1, 1), 'se':(1, 1)  }
+
 
 class Vertex:
     """
     Builds an immutable representation of a vertex in a Papersoccer graph.
     """
     
-    dirs = {  'n':(-1,  0),   's':(1,  0),  'w':(0, -1),  'e':(0, 1),
-             'nw':(-1, -1),  'sw':(1, -1), 'ne':(-1, 1), 'se':(1, 1)  }
-
     def __init__(self, graph, ps_json_graph, key):
         """Construct the vertex corresponding to $key in $ps_graph."""
         self.graph = graph
         self.vertex_key = key
-        ps_vertices = ps_json_graph['vertices']
-        ps_json_vertex = ps_vertices[self.vertex_key]
+
+        ps_json_vertex = ps_json_graph['vertices'][self.vertex_key]
         self.ps_row = ps_json_vertex['row']
         self.ps_column = ps_json_vertex['column']
         self.move_again = ps_json_vertex.get('visited', False)
@@ -25,9 +27,9 @@ class Vertex:
         # store the neighbors as <dir>:<Vertex> pairs
         # initialize as <dir>:<key> pairs; Graph() finishes construction
         self.neighbors = {}
-        for d in self.dirs:
-            neighbor = {   'row'   :   self.get_row() + self.dirs[d][0],
-                           'column':   self.get_column() + self.dirs[d][1] }
+        for d in dirs:
+            neighbor = {   'row'   :   self.get_row() + dirs[d][0],
+                           'column':   self.get_column() + dirs[d][1] }
             self.neighbors[d] = '[{row},{column}]'.format(**neighbor)
 
     def __str__(self):
@@ -145,59 +147,50 @@ class Instance:
         return self.seed
 
     def check_traversed(self, tail, head):
-        """Return boolean corresp. to whether ($tail, $head) is "traversed"."""
+        """Return boolean corresp. to whether edge has been searched."""
         return head in self.graph.edge_table[tail]
 
     def check_visited(self, vertex):
-        """Return boolean corresp. to whether $vertex has been "visited"."""
+        """Return boolean corresp. to whether $vertex has been searched."""
         return vertex.move_again
 
     def update_with_dir(self, direction):
-        """Update the Instance and Graph by moving the ball in a given direction."""
+        """Update the Instance and Graph by moving the ball in a given dir."""
         self.n_moves += 1
         dest_vertex = self.get_current().get_next_via(direction)
         if self.debug:
-            print 'went %s from %s to %s' % (direction, self.get_current(), dest_vertex)
+            print 'went %s from %s to %s' % (   direction, self.get_current(), 
+                                                dest_vertex     )
         self.graph.edge_table[self.curr_vertex][dest_vertex] = 'visited'
         self.graph.edge_table[dest_vertex][self.curr_vertex] = 'visited'
         self.curr_vertex = dest_vertex
         self.curr_vertex.move_again = True
-        
+
+
 class SearchNode:
     """The Nodes for search algorithms to use."""
 
-    #def __init__(self, prev_node, curr_search, searched):
     def __init__(self, prev_node, curr_vertex, moves):
-        self.prev_node = prev_node  # point to the preceding search node
+        self.prev_node = prev_node
         self.curr_vertex = curr_vertex
         self.moves = moves
-        #self.curr_search = curr_search  # save the path of the current search
-        #self.curr_vertex = self.curr_search[-1] # DANGEROUS: makes jumps possible
 
         prev_vertex = self.prev_node.get_current()
         self.visited = (    (prev_vertex, self.curr_vertex), 
                             (self.curr_vertex, prev_vertex)     )
-        
-        #searched[prev_vertex][self.curr_vertex] = self.curr_search
-        #searched[self.curr_vertex][prev_vertex] = self.curr_search
-
-        #try:
-        #    self.curr_vertex = self.curr_vertex.get_next_via(dir_from_prev)
-        #except KeyError:
-        #    pass # if $dir_from_prev is None, for initial SearchNode
 
     def get_current(self):
         """Return the vertex corresponding to this node of the search."""
         return self.curr_vertex
 
     def check_traversed(self, tail, head):
-        """Return boolean corresp. to whether (tail, head) edge traversed."""
+        """Return boolean corresp. to whether edge has been searched."""
         return ((tail, head) in self.visited or 
                 self.prev_node.check_traversed(tail, head)
                 )
 
     def check_visited(self, vertex=None):
-        """Return boolean corresp. to whether $vertex has been visited."""
+        """Return boolean corresp. to whether $vertex has been searched."""
         if vertex == None: vertex = self.get_current()
         return (self.get_current() == vertex or 
                 self.prev_node.check_visited(vertex)
@@ -205,6 +198,7 @@ class SearchNode:
 
     def get_next(self, direction):
         """Return the successor SearchNode corresp. to $direction."""
+        # does not check if moving in $direction is legal
         return SearchNode(  self, 
                             self.curr_vertex.get_next_via(direction), 
                             self.moves+1)
@@ -225,11 +219,22 @@ class SearchNode:
         grid.append(self.get_current())
         grid = sorted(grid, key=str)
         grid = [pt if pt in nexts else '-'*5 for pt in grid]
+        grid = ['+'+str(pt) if pt in nexts and self.check_visited(pt) else str(pt) for pt in grid]
+
+        width = int(math.ceil(pow(len(grid), .5)))
+        height = int(math.ceil(1.0*len(grid)/width))
+        grid_str = ' %6s ' * width
+        grid_str = ('\n |%s\n |' % grid_str) * height
+        grid_str = grid_str[1:]
+
+        try:
+            grid_str = grid_str % tuple(grid)
+        except TypeError:
+            grid_str = grid_str % tuple(grid + ['' for _ in range(width*height - len(grid))])
 
         print '\n +-- nexts of %s are:\n |' % self.get_current()
-        print ('\n | %5s   %5s   %5s\n |'*(len(grid)/3))[1:] % tuple(grid)
+        print grid_str
 
-        
     
 class Agent:
     """Agent to play a Instance."""
