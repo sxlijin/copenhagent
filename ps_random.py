@@ -9,7 +9,7 @@ s = r = ps = ps_agent = None
 
 def setup():
     global s, r, ps, ps_agent
-    s = shell.Shell(token='8eb8153d4399c87e256cd9ac55b7ff24')
+    s = shell.Shell(token='933c97c35d6c81db2f25feb5ab2b3c7a')
     s.try_command('papersoccer leave')
     r = s.active_agent.say('test %s' % time.strftime('%H:%M:%S', time.gmtime()))
     ps = lib.papersoccer.Instance(s)
@@ -19,6 +19,7 @@ def v(r, c): return ps.graph.get_vertex('[%d,%d]' % (r, c))
 def move(direction):    ps_agent.cmd_ps_move(direction)
 def show_current():     print 'current is', ps.get_current()
 def curr_search_node(): return lib.papersoccer.SearchNode(ps, ps.get_current(), 0)
+def curr_search_wrap(): return lib.papersoccer.SearchNodeWrap(curr_search_node())
 
 def show_edges_for(r, c):
     g = ps.graph
@@ -31,21 +32,37 @@ setup()
 
 order = ['e', 'ne', 'se', 'n', 's', 'nw', 'sw', 'w']
 
-while True:
-    curr = curr_search_node()
-    nexts = [node.get_current() for node in curr.get_nexts()]
-    # game is over
-    if ps.get_current().is_terminal or nexts == []: break
+def random_nodes():
+    while True:
+        walk = curr_search_node()
+        nexts = walk.get_nexts()
 
-    # choose a successor state to move to
-    successor = None
-    for direction in order:
-        try:    successor = curr.get_next(direction)
-        except KeyError:    continue
-        if successor.get_current() in nexts: break
+        # game is over
+        if ps.get_current().is_terminal or len(nexts) == 0: break
+    
+        # choose a successor state to move to
+        (play_seq, walk) = random.choice(nexts.items())
 
-    ps_agent.cmd_ps_move(direction)
+        ps_agent.cmd_ps_move(play_seq)
+    
+        curr_search_node().show_nexts()
+        raw_input()
 
-    curr_search_node().show_nexts()
-    raw_input()
+def random_wraps():
+    while True:
+        walk = curr_search_wrap()
+        nexts = walk.get_nexts()
 
+        # game is over
+        if ps.get_current().is_terminal or len(nexts) == 0: break
+    
+        # choose a successor state to move to
+        (play_seq, walk) = random.choice(nexts.items())
+
+        for play in play_seq: ps_agent.cmd_ps_move(play)
+    
+        curr_search_node().show_nexts()
+        raw_input()
+
+
+random_wraps()
