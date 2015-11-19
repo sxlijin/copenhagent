@@ -30,7 +30,16 @@ def show_edges_for(r, c):
 
 setup()
 
-order = ['e', 'ne', 'se', 'n', 's', 'nw', 'sw', 'w']
+dirs = lib.papersoccer.dirs
+order = ['e', 'ne', 'se', 'n', 's']#, 'nw', 'sw', 'w']
+
+def choose_next(items):
+    #return random.choice(items)
+    def sum_dirs(items): return (   sum(dirs[x][0] for x in items[0]), 
+                                    sum(dirs[x][1] for x in items[0])    )
+    items = sorted(items, key=sum_dirs, reverse=True)
+    print [item[0] for item in items]
+    return items[0]
 
 def random_nodes():
     while True:
@@ -41,7 +50,7 @@ def random_nodes():
         if ps.get_current().is_terminal or len(nexts) == 0: break
     
         # choose a successor state to move to
-        (play_seq, walk) = random.choice(nexts.items())
+        (play_seq, walk) = choose_next(nexts.items())
 
         ps_agent.cmd_ps_move(play_seq)
     
@@ -57,7 +66,7 @@ def random_wraps():
         if ps.get_current().is_terminal or len(nexts) == 0: break
     
         # choose a successor state to move to
-        (play_seq, walk) = random.choice(nexts.items())
+        (play_seq, walk) = choose_next(nexts.items())
 
         for play in play_seq: ps_agent.cmd_ps_move(play)
     
