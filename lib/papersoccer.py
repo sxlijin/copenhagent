@@ -1,87 +1,11 @@
 #! /usr/bin/env python
 
+import math
 import structs
 from logger import *
 
-def win_k_is_0_papersoccer():
-    win_from = {    'n': [  'papersoccer play direction=ne',
-                            'papersoccer play direction=s',
-                            'papersoccer play direction=ne',
-                            'papersoccer play direction=se',
-                            'papersoccer play direction=se' ] ,
-                    's': [  'papersoccer play direction=se',
-                            'papersoccer play direction=n',
-                            'papersoccer play direction=se',
-                            'papersoccer play direction=ne',
-                            'papersoccer play direction=ne' ]       }
-    
-    def ps_force_win_from(side):
-        for act in win_from[side]: r = try_command(act)
-        # uncomment to pause before leaving the game
-        # raw_input('press enter to leave papersoccer game ')
-        try_command('papersoccer leave')
-        return r
-        
-    def ps_play_dir(direction):
-        return try_command('papersoccer play direction=' + direction)
-    
-    def ps_win():
-        dirs = ['ne','se']
-        rand2 = randint(0,1)
-    
-        r = try_command('papersoccer enter')
-        r = ps_play_dir(dirs[rand2])
-        # try a random direction
-        if len(r.json()['action']['percepts']) == 2:
-            rand2 -= 1
-            for i in range(2): r = ps_play_dir(dirs[rand2])
-            if len(r.json()['action']['percepts']) == 2:
-                rand2 -= 1
-                r = ps_play_dir(dirs[rand2])
-                r = ps_play_dir('e')
-                r = ps_force_win_from(
-                    r.json()['action']['percepts'][0][0])
-        if r.json()['action']['percepts'] == ['w']:
-            r = ps_force_win_from(dirs[rand2][0])
-        if not SILENT: print '\n', r.json()['action']['message']
-
-def win_k_is_0_papersoccer():
-    win_from_1 = {  'n': [  'papersoccer play direction=ne',
-                            'papersoccer play direction=se',
-                            'papersoccer play direction=se' ] ,
-                    's': [  'papersoccer play direction=se',
-                            'papersoccer play direction=ne',
-                            'papersoccer play direction=ne' ]       }
-    
-    def ps_force_win_from(side):
-        for act in win_from[side]: r = try_command(act)
-        # uncomment to pause before leaving the game
-        # raw_input('press enter to leave papersoccer game ')
-        try_command('papersoccer leave')
-        return r
-        
-    def ps_play_dir(direction):
-        return try_command('papersoccer play direction=' + direction)
-    
-    def ps_win():
-        dirs = ['ne','se']
-        rand2 = randint(0,1)
-    
-        r = try_command('papersoccer enter')
-        r = ps_play_dir(dirs[rand2])
-        # try a random direction
-        if len(r.json()['action']['percepts']) == 2:
-            rand2 -= 1
-            for i in range(2): r = ps_play_dir(dirs[rand2])
-            if len(r.json()['action']['percepts']) == 2:
-                rand2 -= 1
-                r = ps_play_dir(dirs[rand2])
-                r = ps_play_dir('e')
-                r = ps_force_win_from(
-                    r.json()['action']['percepts'][0][0])
-        if r.json()['action']['percepts'] == ['w']:
-            r = ps_force_win_from(dirs[rand2][0])
-        if not SILENT: print '\n', r.json()['action']['message']
+dirs = {  'n':(-1,  0),   's':(1,  0),  'w':(0, -1),  'e':(0, 1),
+         'nw':(-1, -1),  'sw':(1, -1), 'ne':(-1, 1), 'se':(1, 1)  }
 
 
 class Vertex:
@@ -89,28 +13,24 @@ class Vertex:
     Builds an immutable representation of a vertex in a Papersoccer graph.
     """
     
-    dirs = {  'n':(-1,  0),   's':(1,  0),  'w':(0, -1),  'e':(0, 1),
-             'nw':(-1, -1),  'sw':(1, -1), 'ne':(-1, 1), 'se':(1, 1)  }
-
     def __init__(self, graph, ps_json_graph, key):
         """Construct the vertex corresponding to $key in $ps_graph."""
         self.graph = graph
         self.vertex_key = key
-        ps_vertices = ps_json_graph['vertices']
-        ps_vertex = ps_vertices[self.vertex_key]
-        self.ps_row = ps_vertex['row']
-        self.ps_column = ps_vertex['column']
 
-        self.next_vertices = {}
+        ps_json_vertex = ps_json_graph['vertices'][self.vertex_key]
+        self.ps_row = ps_json_vertex['row']
+        self.ps_column = ps_json_vertex['column']
+        self.move_again = ps_json_vertex.get('visited', False)
+        self.is_terminal = ps_json_vertex['type'] == 'terminal'
+
+        # store the neighbors as <dir>:<Vertex> pairs
+        # initialize as <dir>:<key> pairs; Graph() finishes construction
+        self.neighbors = {}
         for d in dirs:
-            if d in ps_vertex: continue # skip if edge marked
-
-            successor_key = '[{r},{c}]'.format( r = v.get_row() + dirs[d][0],
-                                                c = v.get_column() + dirs[d][1])
-            if successor_key in ps_vertices:
-                self.next_vertices[successor_key] = d
-
-        self.move_again = ps_vertex.get('visited', False)
+            neighbor = {   'row'   :   self.get_row() + dirs[d][0],
+                           'column':   self.get_column() + dirs[d][1] }
+            self.neighbors[d] = '[{row},{column}]'.format(**neighbor)
 
     def __str__(self):
         return self.vertex_key
@@ -139,39 +59,15 @@ class Vertex:
 
     def get_nexts(self):
         """Return the tuple of direct successors of <Vertex> $self."""
-        return self.next_vertices.keys()
+        return self.graph.get_nexts(self)
 
     def get_next_via(self, direction):
         """Return the <Vertex> $next with DirEdge($self, $next, $dir)."""
-        return self.graph.get_next_via(self, direction)
-
-    def get_dir_to_next(self, next_vertex):
-        """Return the $dir in DirEdge($self, $next, $dir)."""
-        return self.graph.get_dir_to_next(self, next_vertex)
-
-class DirEdge:
-    """Builds an immutable representation of a directed edge."""
-
-    def __init__(self, tail, head, direction):
-        """Initialize the directed edge."""
-        (self.tail, self.head) = (tail, head)
-        self.direction = direction
-
-    def __str__(self):
-        return '%-7s - %5s - %+7s' % (
-            self.get_tail(), self.get_dir(), self.get_head())
-
-    def get_tail(self):
-        """Return the tail of the directed edge."""
-        return self.tail
-
-    def get_head(self):
-        """Return the head of the directed edge."""
-        return self.head
-
-    def get_dir(self):
-        """Return the direction of the directed edge."""
-        return self.direction
+        return self.neighbors[direction]
+#unk#
+#unk#    def get_dir_to_next(self, next_vertex):
+#unk#        """Return the $dir in DirEdge($self, $next, $dir)."""
+#unk#        return self.graph.get_dir_to_next(self, next_vertex)
 
 
 class Graph:
@@ -183,21 +79,29 @@ class Graph:
         """Parse the JSON to save the graph of Papersoccer.Instance."""
         self.ps_json_graph = ps_json_graph
         
+        # store vertices of papersoccer graph
         self.vertex_table = {
             vertex_key:Vertex(self, ps_json_graph, vertex_key)
             for vertex_key in ps_json_graph['vertices'] 
         }
-
-        self.next_vertices = {}
+        
+        # properly populate the $neighbors dicts with <Vertex>s as values
         for vertex in self.vertex_table.viewvalues():
-            nexts = set()
-            for d in dirs:
-                successor = '[{r},{c}]'.format( r = v.row + dirs[d][0],
-                                                c = v.column + dirs[d][1] )
-                if successor in self.vertex_table:
-                    nexts.add( tuple(d, self.vertex_table[successor]) )
-            self.next_vertices[vertex] = nexts
-           
+            vertex.neighbors = {    item[0]:self.get_vertex(item[1])
+                                    for item in vertex.neighbors.viewitems()
+                                    if item[1] in self.vertex_table     }
+
+        # record visited edges as nested dict
+        # if x in edge_table[y], then y in edge_table[x] and x-y was visited
+        edges = ps_json_graph['edges']
+        self.edge_table = { self.get_vertex(tail)
+                            :
+                            { self.get_vertex(head) : edges[tail][head]
+                              for head in edges[tail]
+                            }
+                            for tail in edges   }
+
+          
     def get_vertex(self, vertex_key):
         """Return the <Vertex> corresponding to $vertex_key."""
         return self.vertex_table[vertex_key]
@@ -220,96 +124,128 @@ class Instance:
         # begin parsing the FullResponse
         ps_setup = r.json()['state']['papersoccer'][self.token]
         ps_config = ps_setup['config']
-        self.graph = Graph(ps_setup['soccerfield'])
+        ps_field = ps_setup['soccerfield']
+        self.graph = Graph(ps_field)
         
         # store $seed, which is the default weight for nav vertices
         self.seed = ps_config['seed']
-        self.init_vertex = self.graph.get_vertex(
+        self.curr_vertex = self.graph.get_vertex(
             '[{row},{column}]'.format(**ps_setup['currentVertex']))
+        self.curr_vertex.move_again = True
+        self.n_moves = 0
 
-    def get_initial(self): 
+        self.goal_vertex = self.graph.get_vertex(
+            '[{row},{column}]'.format(  row = ps_field['height']/2,
+                                        column = ps_field['width']-1   ))
+
+    def get_current(self): 
         """Returns <Vertex> specified to be initial position."""
-        return self.init_vertex
+        return self.curr_vertex
 
     def get_seed(self):
         """Return the seed for the NavInst."""
         return self.seed
 
-#class State:
-#    """An immutable State within an Instance. Tracks path to a <Vertex>."""
-#    
-#    def __init__(self, instance,
-#            vertex=None, count_credits=None, count_actions=None,
-#            prev_state=None, dir_from_prev=None):
-#        """Contruct a NavState: track NavInst, pos, #credits, #moves, $prev."""
-#        # NOTE: if NavState is made mutable, MUST implement deepcopy()
-#        self.instance = instance
-#        self.vertex = instance.get_initial() if vertex == None else vertex
-#
-#        if count_credits == None:
-#            try:
-#                self.count_credits = instance.shell.active_agent.n_credits
-#            except AttributeError:
-#                self.count_credits = 0
-#        else:
-#            self.count_credits = count_credits
-#
-#        if count_actions == None:
-#            try:
-#                self.count_actions = instance.shell.active_agent.n_actions
-#            except AttributeError:
-#                self.count_actions = 0
-#        else:
-#            self.count_actions = count_actions
-#
-##        try:
-##            self.count_credits = instance.shell.active_agent.n_credits
-##            self.count_actions = instance.shell.active_agent.n_actions
-##        except AttributeError:
-##            self.count_credits = 0 if count_credits == None else count_credits
-##            self.count_actions = 0 if count_actions == None else count_actions
-#        # save previous state
-#        self.prev_state = prev_state
-#        self.dir_from_prev = dir_from_prev
-# 
-#    def __str__(self):
-#        return '%7s with avg of %5.2f (%3d creds in %2d moves)' % (
-#            self.get_vertex(), self.get_avg_creds(), 
-#            self.get_n_credits(), self.get_n_actions())
-#
-#    def __lt__(self, other): return self.get_avg_creds() < other.get_avg_creds()
-#    def __le__(self, other): return self.get_avg_creds() <= other.get_avg_creds()
-#    def __gt__(self, other): return self.get_avg_creds() > other.get_avg_creds()
-#    def __ge__(self, other): return self.get_avg_creds() >= other.get_avg_creds()
-#    # do not implement __eq__ or __ne__: want those two to default to using id()
-#
-#    #def get_deepcopy(self):
-#    #    """Return deepcopy of internal state."""
-#    #    # MUST implement if NavState is made mutable
-#    #    return self
-#    
-#    def get_vertex(self):
-#        """Returns current position."""
-#        return self.vertex
-#    
-#    def get_n_credits(self):
-#        """Returns number of earned discredits."""
-#        return self.count_credits
-#
-#    def get_n_actions(self):
-#        """Returns number of moves made."""
-#        return self.count_actions
-#    
+    def check_traversed(self, tail, head):
+        """Return boolean corresp. to whether edge has been searched."""
+        return head in self.graph.edge_table[tail]
+
+    def check_visited(self, vertex):
+        """Return boolean corresp. to whether $vertex has been searched."""
+        return vertex.move_again
+
+    def update_with_dir(self, direction):
+        """Update the Instance and Graph by moving the ball in a given dir."""
+        self.n_moves += 1
+        dest_vertex = self.get_current().get_next_via(direction)
+        if self.debug:
+            print 'went %s from %s to %s' % (   direction, self.get_current(), 
+                                                dest_vertex     )
+        self.graph.edge_table[self.curr_vertex][dest_vertex] = 'visited'
+        self.graph.edge_table[dest_vertex][self.curr_vertex] = 'visited'
+        self.curr_vertex = dest_vertex
+        self.curr_vertex.move_again = True
+
+
+class SearchNode:
+    """The Nodes for search algorithms to use."""
+
+    def __init__(self, prev_node, curr_vertex, moves):
+        self.prev_node = prev_node
+        self.curr_vertex = curr_vertex
+        self.moves = moves
+
+        prev_vertex = self.prev_node.get_current()
+        self.visited = (    (prev_vertex, self.curr_vertex), 
+                            (self.curr_vertex, prev_vertex)     )
+
+    def get_current(self):
+        """Return the vertex corresponding to this node of the search."""
+        return self.curr_vertex
+
+    def check_traversed(self, tail, head):
+        """Return boolean corresp. to whether edge has been searched."""
+        return ((tail, head) in self.visited or 
+                self.prev_node.check_traversed(tail, head)
+                )
+
+    def check_visited(self, vertex=None):
+        """Return boolean corresp. to whether $vertex has been searched."""
+        if vertex == None: vertex = self.get_current()
+        return (self.get_current() == vertex or 
+                self.prev_node.check_visited(vertex)
+                )
+
+    def get_next(self, direction):
+        """Return the successor SearchNode corresp. to $direction."""
+        # does not check if moving in $direction is legal
+        return SearchNode(  self, 
+                            self.curr_vertex.get_next_via(direction), 
+                            self.moves+1)
+
+    def get_nexts(self):
+        """Return the successor SearchNodes."""
+        return tuple(   SearchNode(self, vertex, self.moves+1)
+                        for vertex in self.curr_vertex.neighbors.viewvalues()
+                        if not self.check_traversed(self.get_current(), vertex)
+                        )
+
+    def show_nexts(self):
+        """Graphically show the grid from current to the successors."""
+        
+        nexts = [nx.get_current() for nx in self.get_nexts()]
+
+        grid = list(self.get_current().neighbors.values())
+        grid.append(self.get_current())
+        grid = sorted(grid, key=str)
+        grid = [pt if pt in nexts else '-'*5 for pt in grid]
+        grid = ['+'+str(pt) if pt in nexts and self.check_visited(pt) else str(pt) for pt in grid]
+
+        width = int(math.ceil(pow(len(grid), .5)))
+        height = int(math.ceil(1.0*len(grid)/width))
+        grid_str = ' %6s ' * width
+        grid_str = ('\n |%s\n |' % grid_str) * height
+        grid_str = grid_str[1:]
+
+        try:
+            grid_str = grid_str % tuple(grid)
+        except TypeError:
+            grid_str = grid_str % tuple(grid + ['' for _ in range(width*height - len(grid))])
+
+        print '\n +-- nexts of %s are:\n |' % self.get_current()
+        print grid_str
+
+    
 class Agent:
     """Agent to play a Instance."""
     
     def __init__(self, instance, state=None, debug=False):
         self.instance = instance
-        self.state = State(instance) if state == None else state
+        #self.state = State(instance) if state == None else state
         self.debug = debug
     
     def __str__(self):
-        return self.get_pos()
+        return self.instance.get_current()
     
     def alg_log_start(self, alg_name):
         """Log the start of a papersoccer algorithm."""
@@ -327,19 +263,17 @@ class Agent:
         """Command agent to make a move in papersoccer."""
         # if passed a $direction
         if type(moves) in (str, unicode):
-            return self.instance.try_command(
+            r = self.instance.try_command(
                 'papersoccer play direction=%s' % moves)
-        # if passed list of moves
-        elif type(moves) is list:
-            # if moves are in the form of ($direction, $dest_vertex)
-            if type(moves[0]) is tuple:
-                # move in $direction
-                for move in moves: self.cmd_ps_move(move[0])
-            # if moves are in the form of $direction
-            elif type(moves[0]) is str:
-                # move in $direction
-                for move in moves: self.cmd_ps_move(move)
-    
+            if r.status_code == 200 and r.json()['action']['applicable']:
+                print '\n(me)  %s ->  ' % moves,
+                print '(cpu) ',
+                for move in r.json()['action']['percepts']: print move, ' -> ',
+                print '\n'
+                for d in [moves] + r.json()['action']['percepts']:
+                    self.instance.update_with_dir(d)
+            return r
+
     def cmd_ps_leave(self):
         """Command agent to leave papersoccer."""
         return self.instance.try_command('papersoccer leave')
