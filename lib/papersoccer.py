@@ -27,6 +27,7 @@ class Vertex:
         # store the neighbors as <dir>:<Vertex> pairs
         # initialize as <dir>:<key> pairs; Graph() finishes construction
         self.neighbors = {}
+        if self.is_terminal: return
         for d in dirs:
             neighbor = {   'row'   :   self.get_row() + dirs[d][0],
                            'column':   self.get_column() + dirs[d][1] }
