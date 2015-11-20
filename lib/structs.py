@@ -4,8 +4,8 @@
 class GenericStruct(object):
     """Implements a generic data structure based on a list."""
     
-    def __init__(self):
-        self._generic = []
+    def __init__(self, iterable=tuple()):
+        self._generic = list(iterable)
         self._name = 'Generic'
         self._mutate_index = float('nan')
     
@@ -61,12 +61,12 @@ class GenericStruct(object):
 class Queue(GenericStruct):
     """Implements a standard FIFO queue."""
 
-    def __init__(self):
+    def __init__(self, iterable=tuple()):
         """
         Initialize the queue.
         Also binds queue-specific operation names to insertion and deletion.
         """
-        super(Queue, self).__init__()
+        super(Queue, self).__init__(iterable)
         self._name = 'Queue'
         self._mutate_index = 0
         
@@ -78,7 +78,7 @@ class Queue(GenericStruct):
 class Stack(GenericStruct):
     """Implements a standard LIFO stack."""
 
-    def __init__(self):
+    def __init__(self, iterable=tuple()):
         """
         Initialize the stack.
         Also binds stack-specific operation names to insertion and deletion.
@@ -95,7 +95,7 @@ class Stack(GenericStruct):
 class MinPriorityQueue(GenericStruct):
     """Implements a heap with an optional key() function."""
     
-    def __init__(self, key=None):
+    def __init__(self, iterable=tuple(), key=None):
         """Initialize the heap."""
         super(MinPriorityQueue, self).__init__()
         self._heap = self._generic
@@ -103,6 +103,7 @@ class MinPriorityQueue(GenericStruct):
         self.key = key
 
         self.heapq = __import__('heapq')
+        self.add_iterable(iterable)
 
     def add(self, item, iterable=None):
         """
