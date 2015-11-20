@@ -1,3 +1,0 @@
-Draw an ASCII into the README describing the structure of the files here right
-now and how the architecture is set up, because it's very confusing and really
-unclear right now, which is a big problem.
