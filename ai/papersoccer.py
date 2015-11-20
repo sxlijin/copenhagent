@@ -1,84 +1,84 @@
 #! /usr/bin/env python
 
+import time, random
 
-def win_k_is_0_papersoccer():
-    win_from = {    'n': [  'papersoccer play direction=ne',
-                            'papersoccer play direction=s',
-                            'papersoccer play direction=ne',
-                            'papersoccer play direction=se',
-                            'papersoccer play direction=se' ] ,
-                    's': [  'papersoccer play direction=se',
-                            'papersoccer play direction=n',
-                            'papersoccer play direction=se',
-                            'papersoccer play direction=ne',
-                            'papersoccer play direction=ne' ]       }
-    
-    def ps_force_win_from(side):
-        for act in win_from[side]: r = try_command(act)
-        # uncomment to pause before leaving the game
-        # raw_input('press enter to leave papersoccer game ')
-        try_command('papersoccer leave')
-        return r
-        
-    def ps_play_dir(direction):
-        return try_command('papersoccer play direction=' + direction)
-    
-    def ps_win():
-        dirs = ['ne','se']
-        rand2 = randint(0,1)
-    
-        r = try_command('papersoccer enter')
-        r = ps_play_dir(dirs[rand2])
-        # try a random direction
-        if len(r.json()['action']['percepts']) == 2:
-            rand2 -= 1
-            for i in range(2): r = ps_play_dir(dirs[rand2])
-            if len(r.json()['action']['percepts']) == 2:
-                rand2 -= 1
-                r = ps_play_dir(dirs[rand2])
-                r = ps_play_dir('e')
-                r = ps_force_win_from(
-                    r.json()['action']['percepts'][0][0])
-        if r.json()['action']['percepts'] == ['w']:
-            r = ps_force_win_from(dirs[rand2][0])
-        if not SILENT: print '\n', r.json()['action']['message']
+import lib.papersoccer
+from lib.logger import *
 
-def win_k_is_0_papersoccer():
-    win_from_1 = {  'n': [  'papersoccer play direction=ne',
-                            'papersoccer play direction=se',
-                            'papersoccer play direction=se' ] ,
-                    's': [  'papersoccer play direction=se',
-                            'papersoccer play direction=ne',
-                            'papersoccer play direction=ne' ]       }
-    
-    def ps_force_win_from(side):
-        for act in win_from[side]: r = try_command(act)
-        # uncomment to pause before leaving the game
-        # raw_input('press enter to leave papersoccer game ')
-        try_command('papersoccer leave')
-        return r
-        
-    def ps_play_dir(direction):
-        return try_command('papersoccer play direction=' + direction)
-    
-    def ps_win():
-        dirs = ['ne','se']
-        rand2 = randint(0,1)
-    
-        r = try_command('papersoccer enter')
-        r = ps_play_dir(dirs[rand2])
-        # try a random direction
-        if len(r.json()['action']['percepts']) == 2:
-            rand2 -= 1
-            for i in range(2): r = ps_play_dir(dirs[rand2])
-            if len(r.json()['action']['percepts']) == 2:
-                rand2 -= 1
-                r = ps_play_dir(dirs[rand2])
-                r = ps_play_dir('e')
-                r = ps_force_win_from(
-                    r.json()['action']['percepts'][0][0])
-        if r.json()['action']['percepts'] == ['w']:
-            r = ps_force_win_from(dirs[rand2][0])
-        if not SILENT: print '\n', r.json()['action']['message']
+import shell
+
+###############################################################################
+#
+#  Heuristic functions that assess the desirability of a given game board.
+
+def choose_from_according_to(wraps, heuristic, mode=1):
+    """Prioritize nodes according to heuristic and return highest-scoring."""
+    if mode == -1:  # introduce a option for random
+        wraps = random.shuffle(wraps)
+    elif mode == 0:
+        wraps = sorted(wraps, key=heuristic)
+    elif mode == 1:
+        wraps = list(reversed(sorted(wraps, key=heuristic, reverse=True)))
+
+    DEBUG = True
+    if DEBUG:
+        n = 20
+        print ' | %d most preferred options are (from least to most):' % n
+        for wrap in wraps[-n:]: 
+            print ' | %s via %s ' % (wrap.get_current(), wrap.prev_plays)
+        print ' | %s' % ('='*(80-3))
+        print ' | %s via %s ' % (wrap.get_current(), wrap.prev_plays),
+        print 'was chosen from %d options' % len(wraps)
+    return wraps[-1]
 
 
+def heuristic_crude(wrap):
+    """Prioritize by rightmost, then number of edges traversed by the move."""
+    return (    wrap.get_current().get_column(), 
+                len(wrap.prev_plays)
+                )
+
+
+def hill_climb(ps_agent):
+    """Navigation search algorithm: hill climbing."""
+    r = None
+    ps = ps_agent.instance
+
+    play_seq = tuple()
+    while True:
+        for play in play_seq: r = ps_agent.cmd_ps_move(play)
+
+        walk = ps_agent.curr_search_wrap()
+        walk.show_nexts()
+        nexts = walk.get_nexts()
+
+        # game is over
+        if ps.get_current().is_terminal or len(nexts) == 0: break
+    
+        # choose a successor state to move to
+        # successor SearchNodeWrap discarded because it only records the state
+        #   following agent's moves, not following agent's & computer's moves
+        play_seq = choose_from_according_to(nexts, heuristic_crude).prev_plays
+
+    return r
+
+
+###############################################################################
+#
+#  Implemented for standalone execution.
+
+ps_agent = None
+def setup():
+    import sys
+    s = shell.Shell(token= sys.argv[1])
+    s.try_command('papersoccer leave')
+    r = s.active_agent.say('test %s' % time.strftime('%H:%M:%S', time.gmtime()))
+
+    ps = lib.papersoccer.Instance(s)
+    ps_agent = lib.papersoccer.Agent(instance=ps)
+
+    return ps_agent
+
+
+if __name__ == '__main__':
+    hill_climb(setup())
