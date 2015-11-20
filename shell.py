@@ -4,6 +4,7 @@ import readline, re
 
 import agent
 import lib.navigation, ai.navigation
+import lib.papersoccer, ai.papersoccer
 from lib.logger import *
 
 
@@ -28,7 +29,21 @@ def navigation_ai(shell):
     log_runtime_of(nav_solve) 
     return nav_agent.cmd_nav_leave()
 
+def papersoccer_ai(shell):
+    debug=False
+    debug=True
 
+    def ps_setup():
+        ps_inst = lib.papersoccer.Instance(shell)
+        ps_agent = lib.papersoccer.Agent(instance=ps_inst)
+        return ps_agent
+
+    def ps_solve():
+        return ai.papersoccer.hill_climb(ps_agent)
+
+    ps_agent = log_runtime_of(ps_setup)[1]
+    log_runtime_of(ps_solve)
+    return ps_agent.cmd_ps_leave()
 
 class CustomProgramError(Exception):
     def __init__(self, value):
@@ -127,7 +142,8 @@ class Shell:
                     self.active_agent.drop_control()
                     self.set_active_agent(token=argv[2])
 
-        if argstr == 'navigation ai':  return navigation_ai(self)
+        if argstr == 'navigation ai':   return navigation_ai(self)
+        if argstr == 'papersoccer ai':  return papersoccer_ai(self)
         elif False: pass
         else: raise CustomProgramError('run_custom_program(): not a custom program')
 
