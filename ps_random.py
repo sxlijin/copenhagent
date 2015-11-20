@@ -9,7 +9,7 @@ s = r = ps = ps_agent = None
 
 def setup():
     global s, r, ps, ps_agent
-    s = shell.Shell(token='933c97c35d6c81db2f25feb5ab2b3c7a')
+    s = shell.Shell(token='d4eac337094090efed7d7660aad17b85')
     s.try_command('papersoccer leave')
     r = s.active_agent.say('test %s' % time.strftime('%H:%M:%S', time.gmtime()))
     ps = lib.papersoccer.Instance(s)
