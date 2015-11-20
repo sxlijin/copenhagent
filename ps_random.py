@@ -9,7 +9,7 @@ s = r = ps = ps_agent = None
 
 def setup():
     global s, r, ps, ps_agent
-    s = shell.Shell(token='d4eac337094090efed7d7660aad17b85')
+    s = shell.Shell(token='03c3609504fab47ff35db13e18973971')
     s.try_command('papersoccer leave')
     r = s.active_agent.say('test %s' % time.strftime('%H:%M:%S', time.gmtime()))
     ps = lib.papersoccer.Instance(s)
@@ -18,7 +18,7 @@ def setup():
 def v(r, c): return ps.graph.get_vertex('[%d,%d]' % (r, c))
 def move(direction):    ps_agent.cmd_ps_move(direction)
 def show_current():     print 'current is', ps.get_current()
-def curr_search_node(): return lib.papersoccer.SearchNode(ps, ps.get_current(), 0)
+def curr_search_node(): return lib.papersoccer.SearchNodeAtom(ps.get_current(), ps)
 def curr_search_wrap(): return lib.papersoccer.SearchNodeWrap(curr_search_node())
 
 def show_edges_for(r, c):
@@ -30,48 +30,36 @@ def show_edges_for(r, c):
 
 setup()
 
-dirs = lib.papersoccer.dirs
-order = ['e', 'ne', 'se', 'n', 's']#, 'nw', 'sw', 'w']
-
 def choose_next(items):
+    # items is a list of successors
+    # choose_next() sorts them by preference then chooses first
     #return random.choice(items)
-    def sum_dirs(items): return (   sum(dirs[x][0] for x in items[0]), 
-                                    sum(dirs[x][1] for x in items[0])    )
+    def sum_dirs(item): return (item.get_current().get_column(), len(item.prev_plays))
     items = sorted(items, key=sum_dirs, reverse=True)
-    print [item[0] for item in items]
+    print ' | options are: '
+    for item in items:
+        print ' | %s by %s' % (item.get_current(), item.prev_plays)
     return items[0]
 
-def random_nodes():
-    while True:
-        walk = curr_search_node()
-        nexts = walk.get_nexts()
-
-        # game is over
-        if ps.get_current().is_terminal or len(nexts) == 0: break
-    
-        # choose a successor state to move to
-        (play_seq, walk) = choose_next(nexts.items())
-
-        ps_agent.cmd_ps_move(play_seq)
-    
-        curr_search_node().show_nexts()
-        raw_input()
 
 def random_wraps():
+    play_seq = tuple()
     while True:
+        for play in play_seq: ps_agent.cmd_ps_move(play)
+
         walk = curr_search_wrap()
+        walk.show_nexts()
         nexts = walk.get_nexts()
 
         # game is over
         if ps.get_current().is_terminal or len(nexts) == 0: break
     
         # choose a successor state to move to
-        (play_seq, walk) = choose_next(nexts.items())
+        walk = choose_next(nexts)
+        play_seq = walk.prev_plays
 
-        for play in play_seq: ps_agent.cmd_ps_move(play)
-    
-        curr_search_node().show_nexts()
+        print 'want to mv to %s via %s' % (walk.get_current(), play_seq)
+
         raw_input()
-
 
 random_wraps()
