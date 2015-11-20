@@ -1,53 +1,54 @@
 #! /usr/bin/env python
 
-import time, sys, random
-import shell
+import time, random
+
 import lib.papersoccer
-reload(lib.papersoccer)
+from lib.logger import *
 
-s = r = ps = ps_agent = None
+import shell
 
-def setup():
-    global s, r, ps, ps_agent
-    s = shell.Shell(token='03c3609504fab47ff35db13e18973971')
-    s.try_command('papersoccer leave')
-    r = s.active_agent.say('test %s' % time.strftime('%H:%M:%S', time.gmtime()))
-    ps = lib.papersoccer.Instance(s)
-    ps_agent = lib.papersoccer.Agent(instance=ps)
+###############################################################################
+#
+#  Heuristic functions that assess the desirability of a given game board.
 
-def v(r, c): return ps.graph.get_vertex('[%d,%d]' % (r, c))
-def move(direction):    ps_agent.cmd_ps_move(direction)
-def show_current():     print 'current is', ps.get_current()
-def curr_search_node(): return lib.papersoccer.SearchNodeAtom(ps.get_current(), ps)
-def curr_search_wrap(): return lib.papersoccer.SearchNodeWrap(curr_search_node())
+def choose_from_according_to(wraps, heuristic, mode=1):
+    """Prioritize nodes according to heuristic and return highest-scoring."""
+    if mode == -1:  # introduce a option for random
+        wraps = random.shuffle(wraps)
+    elif mode == 0:
+        wraps = sorted(wraps, key=heuristic)
+    elif mode == 1:
+        wraps = list(reversed(sorted(wraps, key=heuristic, reverse=True)))
 
-def show_edges_for(r, c):
-    g = ps.graph
-    vertex = v(r, c)
-    print vertex, 'has edges:'
-    for item in g.edge_table[vertex].viewitems(): print '  +--', item[0], item[1]
-
-
-setup()
-
-def choose_next(items):
-    # items is a list of successors
-    # choose_next() sorts them by preference then chooses first
-    #return random.choice(items)
-    def sum_dirs(item): return (item.get_current().get_column(), len(item.prev_plays))
-    items = sorted(items, key=sum_dirs, reverse=True)
-    print ' | options are: '
-    for item in items:
-        print ' | %s by %s' % (item.get_current(), item.prev_plays)
-    return items[0]
+    DEBUG = True
+    if DEBUG:
+        n = 20
+        print ' | %d most preferred options are (from least to most):' % n
+        for wrap in wraps[-n:]: 
+            print ' | %s via %s ' % (wrap.get_current(), wrap.prev_plays)
+        print ' | %s' % ('='*(80-3))
+        print ' | %s via %s ' % (wrap.get_current(), wrap.prev_plays),
+        print 'was chosen from %d options' % len(wraps)
+    return wraps[-1]
 
 
-def random_wraps():
+def heuristic_crude(wrap):
+    """Prioritize by rightmost, then number of edges traversed by the move."""
+    return (    wrap.get_current().get_column(), 
+                len(wrap.prev_plays)
+                )
+
+
+def hill_climb(ps_agent):
+    """Navigation search algorithm: hill climbing."""
+    r = None
+    ps = ps_agent.instance
+
     play_seq = tuple()
     while True:
-        for play in play_seq: ps_agent.cmd_ps_move(play)
+        for play in play_seq: r = ps_agent.cmd_ps_move(play)
 
-        walk = curr_search_wrap()
+        walk = ps_agent.curr_search_wrap()
         walk.show_nexts()
         nexts = walk.get_nexts()
 
@@ -55,11 +56,29 @@ def random_wraps():
         if ps.get_current().is_terminal or len(nexts) == 0: break
     
         # choose a successor state to move to
-        walk = choose_next(nexts)
-        play_seq = walk.prev_plays
+        # successor SearchNodeWrap discarded because it only records the state
+        #   following agent's moves, not following agent's & computer's moves
+        play_seq = choose_from_according_to(nexts, heuristic_crude).prev_plays
 
-        print 'want to mv to %s via %s' % (walk.get_current(), play_seq)
+    return r
 
-        raw_input()
 
-random_wraps()
+###############################################################################
+#
+#  Implemented for standalone execution.
+
+ps_agent = None
+def setup():
+    import sys
+    s = shell.Shell(token= sys.argv[1])
+    s.try_command('papersoccer leave')
+    r = s.active_agent.say('test %s' % time.strftime('%H:%M:%S', time.gmtime()))
+
+    ps = lib.papersoccer.Instance(s)
+    ps_agent = lib.papersoccer.Agent(instance=ps)
+
+    return ps_agent
+
+
+if __name__ == '__main__':
+    hill_climb(setup())
