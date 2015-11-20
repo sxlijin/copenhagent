@@ -27,6 +27,7 @@ class Vertex:
         # store the neighbors as <dir>:<Vertex> pairs
         # initialize as <dir>:<key> pairs; Graph() finishes construction
         self.neighbors = {}
+        if self.is_terminal: return
         for d in dirs:
             neighbor = {   'row'   :   self.get_row() + dirs[d][0],
                            'column':   self.get_column() + dirs[d][1] }
@@ -168,12 +169,13 @@ class Instance:
 
 
 class SearchNode:
-    """The Nodes for search algorithms to use."""
+    """The atomic elements of the Nodes for search algorithms to use."""
 
     def __init__(self, prev_node, curr_vertex, moves):
         self.prev_node = prev_node
         self.curr_vertex = curr_vertex
         self.moves = moves
+        self.nexts = None
 
         prev_vertex = self.prev_node.get_current()
         self.visited = (    (prev_vertex, self.curr_vertex), 
@@ -199,42 +201,91 @@ class SearchNode:
     def get_next(self, direction):
         """Return the successor SearchNode corresp. to $direction."""
         # does not check if moving in $direction is legal
-        return SearchNode(  self, 
-                            self.curr_vertex.get_next_via(direction), 
-                            self.moves+1)
+        return self.nexts[direction]
 
+    
     def get_nexts(self):
         """Return the successor SearchNodes."""
-        return tuple(   SearchNode(self, vertex, self.moves+1)
-                        for vertex in self.curr_vertex.neighbors.viewvalues()
-                        if not self.check_traversed(self.get_current(), vertex)
-                        )
+        if self.nexts == None:
+            self.nexts = {  d:SearchNode(self, vertex, self.moves+1)
+                            for (d, vertex) in self.curr_vertex.neighbors.viewitems()
+                            if not self.check_traversed(self.get_current(), vertex)
+                            }
+        return self.nexts
 
     def show_nexts(self):
         """Graphically show the grid from current to the successors."""
+
+        # generate dict of all 8 neighbors
+        neighbors = self.get_current().neighbors.copy()
+        for d in dirs:
+            if d not in neighbors:
+                v = self.get_current()
+                neighbor = {   'row'   :   v.get_row() + dirs[d][0],
+                               'column':   v.get_column() + dirs[d][1] }
+                neighbors[d] = '[{row},{column}]'.format(**neighbor)
         
-        nexts = [nx.get_current() for nx in self.get_nexts()]
+        # generate list of successor vertices
+        nexts = [nx.get_current() for nx in self.get_nexts().viewvalues()]
 
-        grid = list(self.get_current().neighbors.values())
-        grid.append(self.get_current())
-        grid = sorted(grid, key=str)
-        grid = [pt if pt in nexts else '-'*5 for pt in grid]
-        grid = ['+'+str(pt) if pt in nexts and self.check_visited(pt) else str(pt) for pt in grid]
+        # filter list of successor vertices/neighbors as follows:
+        #   order it from top to down then left to right
+        #   prepend + if vertex has been previously visited
+        #   replace with ----- if vertex cannot be visited/does not exist
+        #   replace $self with --O--
+        def sort_key(v):    return tuple(str(v)[1:-1].split(','))
+        grid = neighbors.values()
+        grid.append(self.get_current().get_key())
+        grid = sorted(grid, key=sort_key)
+        grid = [('+%s' % pt if self.check_visited(pt) else pt)
+                if pt in nexts else '-'*5 for pt in grid]
+        grid[4] = '--O--'
 
-        width = int(math.ceil(pow(len(grid), .5)))
-        height = int(math.ceil(1.0*len(grid)/width))
-        grid_str = ' %6s ' * width
-        grid_str = ('\n |%s\n |' % grid_str) * height
+        # convert list of vertices to a string
+        grid_str = ' %6s ' * 3
+        grid_str = ('\n |%s\n |' % grid_str) * 3
         grid_str = grid_str[1:]
+        grid_str = grid_str % tuple(grid)
 
-        try:
-            grid_str = grid_str % tuple(grid)
-        except TypeError:
-            grid_str = grid_str % tuple(grid + ['' for _ in range(width*height - len(grid))])
-
+        # print it out
         print '\n +-- nexts of %s are:\n |' % self.get_current()
         print grid_str
 
+class SearchNodeWrap:
+    """The Nodes for search algorithms to use."""
+
+    def __init__(self, search_node_atom):
+        self.search_node_atom = search_node_atom
+        self.nexts = None
+
+    def get_current(self):
+        return self.search_node_atom.get_current()
+
+    def check_traversed(self, tail, head):
+        return self.search_node_atom.check_traversed(tail, head)
+
+    def check_visited(self, vertex=None):
+        return self.search_node_atom.check_visited(vertex)
+
+    def get_nexts(self):
+        if self.nexts == None:
+            self.nexts = {  (d,):atom 
+                            for (d, atom)
+                            in self.search_node_atom.get_nexts().viewitems() }
+            while True:
+                break_flag = True
+                for (d_seq, atom) in self.nexts.items():
+                    if atom.get_current().move_again:
+                        for (next_d, next_atom) in atom.get_nexts().viewitems():
+                            self.nexts[d_seq + (next_d,)] = next_atom
+                        self.nexts.pop(d_seq)
+                        break_flag = False
+                if break_flag: break
+        return self.nexts
+
+    def show_nexts(self):
+        self.search_node_wrap.show_nexts()
+            
     
 class Agent:
     """Agent to play a Instance."""
