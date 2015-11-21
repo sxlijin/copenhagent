@@ -104,13 +104,13 @@ def dlminimax(node, is_my_turn, depth):
         #return utility(node, is_my_turn)
 #    if depth > 3: 
 #        print 'depth limited at %s' % node
-        return (node.get_current().get_column(), node.seq_from_prev)
+        return (node.get_current().get_column(), node.prev_plays)
     if is_my_turn:
-        return max( (dlminimax(next_node, False, depth + 1)[0], node.seq_from_prev)
+        return max( (dlminimax(next_node, False, depth + 1)[0], node.prev_plays)
                     for next_node in node.get_nexts()  )
         
     else:
-        return min( (dlminimax(next_node, True, depth + 1)[0], node.seq_from_prev)
+        return min( (dlminimax(next_node, True, depth + 1)[0], node.prev_plays)
                     for next_node in node.get_nexts()  )
 
 
