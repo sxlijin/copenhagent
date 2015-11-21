@@ -150,7 +150,7 @@ def dlalphabeta(node, is_my_turn,
                 depth = 0):
     print '.',
 
-    if is_terminal(node) or depth == 3:
+    if is_terminal(node) or depth == 2:
         return (node.get_current().get_column(), node)
 
     nexts = node.get_nexts()
