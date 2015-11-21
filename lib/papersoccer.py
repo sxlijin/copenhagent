@@ -321,6 +321,8 @@ class SearchNodeWrap:
     """
 
     def get_nexts(self):
+        if self.nexts != None:   return nexts
+
         nexts = list()
         repl_queue = structs.Queue()
         # queue up tuples (successor Atom, plays to get to $successor)
@@ -328,11 +330,11 @@ class SearchNodeWrap:
         def parse_nexts(curr_atom, prev_plays=tuple()):
             for atom in curr_atom.get_nexts():
                 if curr_atom.check_visited(atom):
-                    print 'move again at %s <- %s <- %s' % (
-                                atom.get_current(),
-                                curr_atom.get_current(), 
-                                prev_plays
-                                )
+#                    print 'move again at %s <- %s <- %s' % (
+#                                atom.get_current(),
+#                                curr_atom.get_current(), 
+#                                prev_plays
+#                                )
                     repl_queue.add((atom, prev_plays + (atom.prev_play,)))
                 else:
                     nexts.append(
