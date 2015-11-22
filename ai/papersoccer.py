@@ -36,15 +36,17 @@ def choose_from_according_to(wraps, heuristic, mode=1):
     elif mode == 1:
         wraps = list(reversed(sorted(wraps, key=heuristic, reverse=True)))
 
+    choice = wraps[-1]
+
     DEBUG = True
     if DEBUG:
-        n = 20
-        print ' | %d most preferred options are (from least to most):' % n
-        for wrap in wraps[-n:]: 
-            print ' | %s via %s ' % (wrap.get_current(), wrap.prev_plays)
-        print ' | %s' % ('='*(80-3))
-        print ' | %s via %s ' % (wrap.get_current(), wrap.prev_plays),
+        #print ' | %d most preferred options are (from least to most):' % n
+        #for wrap in wraps[-n:]: 
+        #    print ' | %s via %s ' % (wrap.get_current(), wrap.prev_plays)
+        #print ' | %s' % ('='*(80-3))
+        print ' | %s via %s ' % (choice.get_current(), choice.prev_plays),
         print 'was chosen from %d options' % len(wraps)
+        print
     return wraps[-1]
 
 
@@ -150,7 +152,7 @@ def dlalphabeta(node, is_my_turn,
                 depth = 0):
     print '.',
 
-    if is_terminal(node) or depth == 2:
+    if is_terminal(node) or depth == 3:
         return (node.get_current().get_column(), node)
 
     nexts = node.get_nexts()
@@ -212,7 +214,7 @@ def setup():
 
 if __name__ == '__main__':
     ps_agent = setup()
-    #hill_climb(ps_agent)
-    play_game(ps_agent)
+    hill_climb(ps_agent)
+    #play_game(ps_agent)
     raw_input()
     ps_agent.cmd_ps_leave()

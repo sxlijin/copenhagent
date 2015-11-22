@@ -159,7 +159,9 @@ class Instance:
         """Update the Instance and Graph by moving the ball in a given dir."""
         self.n_moves += 1
         dest_vertex = self.get_current().get_next_via(direction)
-        print ' | %2s: %s -> %s' % (direction, self.get_current(), dest_vertex)
+        log('updating',
+            '%s -> %s via %2s' % (self.get_current(), dest_vertex, direction)
+            )
         self.graph.edge_table[self.curr_vertex][dest_vertex] = 'visited'
         self.graph.edge_table[dest_vertex][self.curr_vertex] = 'visited'
         self.curr_vertex = dest_vertex
@@ -202,10 +204,10 @@ class SearchNodeAtom:
                 self.prev_node.check_visited(vertex)
                 )
 
-    def get_next(self, direction):
-        """Return the successor SearchNodeAtom corresp. to $direction."""
-        # does not check if moving in $direction is legal
-        return self.nexts[direction]
+    #def get_next(self, direction):
+    #    """Return the successor SearchNodeAtom corresp. to $direction."""
+    #    # does not check if moving in $direction is legal
+    #    return self.nexts[direction]
 
     
     def get_nexts(self):
@@ -256,6 +258,20 @@ class SearchNodeAtom:
         print grid_str
 
 
+
+###############################################################################
+#
+#   Ideas to try out:
+#       - generate SearchNodeWraps in a tree/dict that gets saved, and as the
+#         game progresses, iterate down the tree/dict, updating the history 
+#         appropriately
+#           > means you save the cost of generating new nodes
+#           > all you have to do is expand the tree a bit more
+#           > delete nodes corresponding to moves which were not made
+#           > probably something to be handled in lib.papersoccer
+#
+###############################################################################
+
 class SearchNodeWrap:
     """The Nodes for search algorithms to use."""
 
@@ -278,50 +294,35 @@ class SearchNodeWrap:
 
     def get_nexts(self):
         # v inefficient: constantly loops thru successors
-        # never generate the list of successors more than once
-        if self.nexts == None:
-            # store successors as <move_sequence>:<SearchNodeAtomAtom> pairs
-            self.nexts = {  (d,):atom 
-                            for (d, atom)
-                            in self.search_node_atom.get_nexts().viewitems() }
-            while True:
-                break_flag = True
-                for (d_seq, atom) in self.nexts.items():
-                    if atom.get_current().move_again:
-                        for (next_d, next_atom) in atom.get_nexts().viewitems():
-                            self.nexts[d_seq + (next_d,)] = next_atom
-                        self.nexts.pop(d_seq)
-                        break_flag = False
-                if break_flag: break
+        if self.nexts != None: return self.nexts    # cache $nexts
 
-            self.nexts = tuple( SearchNodeWrap(nx, self, d_seq)
-                                for (d_seq, nx) in self.nexts.viewitems()   )
+        # store successors as <move_sequence>:<SearchNodeAtomAtom> pairs
+        nexts = {   (d,):atom 
+                    for (d, atom)
+                    in self.search_node_atom.get_nexts().viewitems() }
+        while True:
+            break_flag = True
+            for (d_seq, atom) in nexts.items():
+                if atom.get_current().move_again:
+                    for (next_d, next_atom) in atom.get_nexts().viewitems():
+                        nexts[d_seq + (next_d,)] = next_atom
+                    nexts.pop(d_seq)
+                    break_flag = False
+            if break_flag: break
+
+            nexts = tuple(  SearchNodeWrap(nx, self, d_seq)
+                            for (d_seq, nx) in nexts.viewitems()   )
+
+        self.nexts = nexts
         return self.nexts
 
-    """
-    two strategies for get_nexts:
-
-    1: add and replace successors where you move again
-        nexts <- (atom -> nexts())
-        repl_queue <- (nx in nexts w/ is-visited(nx))
-        while not repl_queue -> empty
-            expand <- (repl_queue -> rm)
-            delete nexts -> expand
-            extend nexts by expand -> nexts
-            extend repl_queue by (nx in expand -> nexts w/ is-visited(nx))
-
-    2: recurse down
-        for (dir, nx) in atom -> nexts
-            if not is-visited(nx)
-                extend return by nx
-            else
-                extend return by nx -> nexts
-        return
-
-    """
-
-    def get_nexts(self):
-        if self.nexts != None:   return nexts
+    def get_nexts2(self):
+        """
+        Returns a tuple of successor SearchNodeWraps.
+        
+        Does so via iterative graph search with a queue as the frontier.
+        """
+        if self.nexts != None:   return self.nexts
 
         nexts = list()
         repl_queue = structs.Queue()
@@ -349,24 +350,61 @@ class SearchNodeWrap:
         while not repl_queue.is_empty():
             parse_nexts(*repl_queue.rm())
 
-        return nexts
+        self.nexts = nexts
+        return self.nexts
 
-    def get_nexts1(self, prev_moves=tuple(), nexts=None):
-        if nexts == None: nexts = {}
 
-        # for every atomic successor
-        for (d, node) in self.search_node_atom.get_nexts():
-            # if you would move again by moving there
-            if check_visited(node.get_current()):
-                # recurse to its atomic successors
-                SearchNodeWrap(node).get_nexts(
-                    prev_moves = prev_moves + (d,),
-                    nexts = nexts
+    """
+    two strategies for get_nexts:
+
+    1: add and replace successors where you move again
+        nexts <- (atom -> nexts())
+        repl_queue <- (nx in nexts w/ is-visited(nx))
+        while not repl_queue -> empty
+            expand <- (repl_queue -> rm)
+            delete nexts -> expand
+            extend nexts by expand -> nexts
+            extend repl_queue by (nx in expand -> nexts w/ is-visited(nx))
+
+    2: recurse down
+        for (dir, nx) in atom -> nexts
+            if not is-visited(nx)
+                extend return by nx
+            else
+                extend return by nx -> nexts
+        return
+
+    """
+    def get_nexts(self, ancestor=None):
+        """UNTESTED"""
+
+        if self.nexts != None:  return self.nexts
+
+        if ancestor == None: ancestor = self
+        next_atoms = self.search_node_atom.get_nexts()
+        next_wraps = list()
+
+        for next_node in next_atoms:
+            if self.check_visited(next_node):
+                next_wraps.extend(
+                    SearchNodeWrap( next_node,
+                                    ancestor,
+                                    self.prev_plays + (next_node.prev_play,)
+                                    ).get_nexts(ancestor=ancestor)
                     )
-            # if you would not move again
             else:
-                nexts[prev_moves + (d,)] = node
-        return nexts
+                next_wraps.append(
+                    SearchNodeWrap( next_node,
+                                    ancestor,
+                                    self.prev_plays + (next_node.prev_play,)
+                                    )
+                    )
+
+        if ancestor == self:
+            self.nexts = next_wraps
+
+        return next_wraps
+
 
     def show_nexts(self):
         self.search_node_atom.show_nexts()
@@ -380,6 +418,9 @@ class Agent:
         self.try_command = self.instance.shell.try_command
         #self.state = State(instance) if state == None else state
         self.debug = debug
+
+        self.curr_node = None
+        self.my_moves = list()
     
     def __str__(self):
         return str(self.instance.get_current())
@@ -391,13 +432,18 @@ class Agent:
             r = self.try_command(
                 'papersoccer play direction=%s' % move)
             if r.status_code == 200 and r.json()['action']['applicable']:
-                print '\n(me)  %s ->  ' % move,
-                print '(cpu) ',
-                for m in r.json()['action']['percepts']: print m, ' -> ',
-                print
-                for d in [move] + r.json()['action']['percepts']:
+                self.my_moves.append(move)
+                cpu_plays = r.json()['action']['percepts']
+
+                for d in [move] + cpu_plays:
                     self.instance.update_with_dir(d)
-                print
+
+                if len(cpu_plays) != 0:
+                    log('ps_instance updated',
+                        '(me) %s -> (cpu) %s' % (  ' -> '.join(self.my_moves), 
+                                                    ' -> '.join(cpu_plays)      )
+                        )
+                    self.my_moves = list()
             return r
 
     def cmd_ps_leave(self):
@@ -406,8 +452,11 @@ class Agent:
     
     def curr_search_wrap(self):
         """Return the search node corresponding to the current state."""
+        # if walking down a search tree, search it for new current state
+#        if self.curr_node != None:
+            
+
         return SearchNodeWrap(  SearchNodeAtom( self.instance.get_current(),
                                                 self.instance
                                                 )
                                 )
-                            
