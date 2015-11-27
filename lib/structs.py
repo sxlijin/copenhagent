@@ -4,8 +4,8 @@
 class GenericStruct(object):
     """Implements a generic data structure based on a list."""
     
-    def __init__(self):
-        self._generic = []
+    def __init__(self, iterable=tuple()):
+        self._generic = list(iterable)
         self._name = 'Generic'
         self._mutate_index = float('nan')
     
@@ -61,12 +61,12 @@ class GenericStruct(object):
 class Queue(GenericStruct):
     """Implements a standard FIFO queue."""
 
-    def __init__(self):
+    def __init__(self, iterable=tuple()):
         """
         Initialize the queue.
         Also binds queue-specific operation names to insertion and deletion.
         """
-        super(Queue, self).__init__()
+        super(Queue, self).__init__(iterable)
         self._name = 'Queue'
         self._mutate_index = 0
         
@@ -78,7 +78,7 @@ class Queue(GenericStruct):
 class Stack(GenericStruct):
     """Implements a standard LIFO stack."""
 
-    def __init__(self):
+    def __init__(self, iterable=tuple()):
         """
         Initialize the stack.
         Also binds stack-specific operation names to insertion and deletion.
@@ -92,21 +92,22 @@ class Stack(GenericStruct):
         self.pop = self.rm
 
 
-class PriorityQueue(GenericStruct):
+class MinPriorityQueue(GenericStruct):
     """Implements a heap with an optional key() function."""
     
-    def __init__(self, key=None):
+    def __init__(self, iterable=tuple(), key=None):
         """Initialize the heap."""
-        super(PriorityQueue, self).__init__()
+        super(MinPriorityQueue, self).__init__()
         self._heap = self._generic
-        self._name = 'PriorityQueue'
+        self._name = 'MinPriorityQueue'
         self.key = key
 
         self.heapq = __import__('heapq')
+        self.add_iterable(iterable)
 
     def add(self, item, iterable=None):
         """
-        Add $item to the PriorityQueue.
+        Add $item to the MinPriorityQueue.
         If $iterable True, instead calls add_iterable($item).
         """
         if iterable == None: 
@@ -128,8 +129,8 @@ class PriorityQueue(GenericStruct):
 
     def rm(self):
         """
-        Remove smallest element from the PriorityQueue and return it.
-        Raises IndexError if PriorityQueue is empty.
+        Remove smallest element from the MinPriorityQueue and return it.
+        Raises IndexError if MinPriorityQueue is empty.
         """
         try:
             if self.key == None:
@@ -141,8 +142,8 @@ class PriorityQueue(GenericStruct):
 
     def peek(self):
         """
-        Return the smallest element in the PriorityQueue.
-        Raises IndexError if PriorityQueue is empty.
+        Return the smallest element in the MinPriorityQueue.
+        Raises IndexError if MinPriorityQueue is empty.
         """
         try:
             if self.key == None:

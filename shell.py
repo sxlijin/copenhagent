@@ -3,7 +3,8 @@
 import readline, re
 
 import agent
-from lib import navigation
+import lib.navigation, ai.navigation
+import lib.papersoccer, ai.papersoccer
 from lib.logger import *
 
 
@@ -13,18 +14,36 @@ def navigation_ai(shell):
     debug=True
     
     def nav_setup():
-        nav_inst = navigation.Instance(shell, debug=debug)
-        nav_agent = navigation.Agent(nav_inst, debug=debug)
+        nav_inst = lib.navigation.Instance(shell, debug=debug)
+        nav_agent = lib.navigation.Agent(nav_inst, debug=debug)
         return nav_agent
 
     def nav_solve():
-        return nav_agent.nav_generic_breadth_first()
+#        return ai.navigation.generic_greedy_best_first(nav_agent)
+#        return ai.navigation.hill_climb(nav_agent)
+#        return ai.navigation.random_walk(nav_agent)
+#        return ai.navigation.generic_depth_first(nav_agent)
+        return ai.navigation.generic_breadth_first(nav_agent)
 
     nav_agent = log_runtime_of(nav_setup)[1]
     log_runtime_of(nav_solve) 
-    nav_agent.cmd_nav_leave()
+    return nav_agent.cmd_nav_leave()
 
+def papersoccer_ai(shell):
+    debug=False
+    debug=True
 
+    def ps_setup():
+        ps_inst = lib.papersoccer.Instance(shell)
+        ps_agent = lib.papersoccer.Agent(instance=ps_inst)
+        return ps_agent
+
+    def ps_solve():
+        return ai.papersoccer.hill_climb(ps_agent)
+
+    ps_agent = log_runtime_of(ps_setup)[1]
+    log_runtime_of(ps_solve)
+    return ps_agent.cmd_ps_leave()
 
 class CustomProgramError(Exception):
     def __init__(self, value):
@@ -57,7 +76,7 @@ class Shell:
     #
     #  Constructor & mutators.
 
-    def __init__(self, token=None, name=None):
+    def __init__(self, token=None, name=None, hostname=None):
         """
         Initialize the shell using either the token of an existing agent or a 
         name for a new agent which the shell will create.
@@ -68,18 +87,18 @@ class Shell:
             sys.exit('Agent to control not specified.')
 
         self.active_agent = None
-        self.set_active_agent(token, name)
+        self.set_active_agent(token, name, hostname)
 
         # configure readline
         readline.parse_and_bind('set bell-style none')
         readline.parse_and_bind("tab: complete")
         readline.set_completer(self.autocomplete)
 
-    def set_active_agent(self, token=None, name=None):
+    def set_active_agent(self, token=None, name=None, hostname=None):
         """Change the agent which the shell is actively controlling."""
         try:
             if self.active_agent != None: self.active_agent.drop_control()
-            self.active_agent = agent.Agent(token, name)
+            self.active_agent = agent.Agent(token, name, hostname)
         except (AttributeError, ValueError) as e:
             log_error(e)
             
@@ -122,7 +141,9 @@ class Shell:
                 elif argv[1] == 'agent':
                     self.active_agent.drop_control()
                     self.set_active_agent(token=argv[2])
-        if argstr == 'navigation ai':  navigation_ai(self)
+
+        if argstr == 'navigation ai':   return navigation_ai(self)
+        if argstr == 'papersoccer ai':  return papersoccer_ai(self)
         elif False: pass
         else: raise CustomProgramError('run_custom_program(): not a custom program')
 
@@ -191,7 +212,7 @@ class Shell:
                 for i in range(n): r = self.try_command(argv)
                 return r
             try:
-                self.run_custom_program(argstr)
+                return self.run_custom_program(argstr)
             except CustomProgramError:
                 if self.verify_api_command(argv):  
                     return self.do_api_command(argv)

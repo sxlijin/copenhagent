@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import sys
+import sys, time, argparse
 import bestpaths
 try:
     import shell
@@ -10,12 +10,7 @@ except ImportError:
         'user@machine:.../copenhagent$ python -m ai.auton'
         ))
 
-shell = shell.Shell(name='auton')
-agent = shell.active_agent
-
-r = shell.try_command('map enter')
-
-best_path_from_to = bestpaths.best_paths(r)
+best_path_from_to = None
 
 
 def best_dest(r):
@@ -25,20 +20,45 @@ def best_dest(r):
             for loc in locs if 'activities' in locs[loc] and
                                 'navigation' in locs[loc]['activities'])
 
-def simple_auton():
+def simple_auton(shell, r):
+    # hops around navigation activities to win
+    agent = shell.active_agent
     while (agent.n_actions < 5000):
+        while True:
+            b = best_dest(r)
+            if b[0] > agent.get_avg_creds(): break
+            time.sleep(.1)
+
         for cmd in best_path_from_to[agent.location][best_dest(r)[-1]][-1]:
             shell.try_command(cmd)
-        shell.try_command('navigation ai')
-        r = shell.try_command('navigation leave')
+        r = shell.try_command('navigation ai')
 
-def best_dest2(r):
-    locs = r.json()['state']['map']['locations']
-    navlocs =(locs[loc] for loc in locs if 'navigation' in locs[loc]['activities'])
-    print navlocs
-    seeds = (navlocs[loc]['navigation']['config']['seed'] for loc in navlocs) 
-    print seeds
-    factors= sum([locs['navigation']['config']['specials'][thing]['factor'] for thing in navlocs])
-    print factors
+def main():
+    parser = argparse.ArgumentParser(
+        description = ' '.join((
+            'Initializes an autonomous agent in the copenhagent environment.',
+            ''
+        ))
+    )
 
-best_dest2(r)
+    parser.add_argument(
+        '-hostname',
+        metavar='<hostname>',
+        required=True,
+        help='hostname of the copenhagent server to connect to')
+    
+    hostname = parser.parse_args().hostname
+
+    s = shell.Shell(name='auton', hostname=hostname)
+    agent = s.active_agent
+    
+    r = s.try_command('map enter')
+    
+    global best_path_from_to
+    best_path_from_to = bestpaths.best_paths(r)
+    simple_auton(s, r)
+    
+    sys.exit(0)
+
+if __name__ == '__main__':
+    main()
