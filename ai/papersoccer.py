@@ -27,14 +27,14 @@ dirs = lib.papersoccer.dirs
 #
 #  Heuristic functions that assess the desirability of a given game board.
 
-def choose_from_according_to(wraps, heuristic, mode=1):
+def choose_from_according_to(wraps, heuristic, mode=0):
     """Prioritize nodes according to heuristic and return highest-scoring."""
     if mode == -1:  # introduce a option for random
         wraps = random.shuffle(wraps)
     elif mode == 0:
         wraps = sorted(wraps, key=heuristic)
     elif mode == 1:
-        wraps = list(reversed(sorted(wraps, key=heuristic, reverse=True)))
+        wraps = list(reversed(sorted(list(wraps), key=heuristic, reverse=True)))
 
     choice = wraps[-1]
 
@@ -152,7 +152,7 @@ def dlalphabeta(node, is_my_turn,
                 depth = 0):
     print '.',
 
-    if is_terminal(node) or depth == 3:
+    if is_terminal(node) or depth == 1:
         return (node.get_current().get_column(), node)
 
     nexts = node.get_nexts()
@@ -192,7 +192,7 @@ def play_game(ps_agent):
     
         print
         print heur, move_seq
-        raw_input('press enter to execute moves')
+#        raw_input('press enter to execute moves')
     
 
 
@@ -216,5 +216,6 @@ if __name__ == '__main__':
     ps_agent = setup()
     hill_climb(ps_agent)
     #play_game(ps_agent)
-    raw_input()
+    print
+    raw_input('press enter to leave')
     ps_agent.cmd_ps_leave()
