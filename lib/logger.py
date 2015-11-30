@@ -4,6 +4,8 @@
 
 import time, traceback
 
+LOG_STR = '[ %10.6f ] %12.12s : %s' 
+
 def log(event, message=''):
     """
     Logs to console in specific format: [time] event : message.
@@ -11,7 +13,19 @@ def log(event, message=''):
     Returns time.clock() at which log() was called.
     """
     t = time.clock()
-    print '[ %10.8f ] %20.20s : %s' % (t, event, message)
+
+    TRIM_LENGTH = 50
+    if len(message) <= TRIM_LENGTH:
+        print LOG_STR % (t, event, message)
+    else:
+        while len(message) > TRIM_LENGTH:
+            split_index = message.rfind(' ', TRIM_LENGTH-10, TRIM_LENGTH) + 1
+            if split_index == 0: split_index = TRIM_LENGTH
+            print LOG_STR % (t, event, message[:split_index])
+            event = ''
+            message = message[split_index:]
+        print LOG_STR % (t, '', message[:split_index])
+
     return t
 
 
