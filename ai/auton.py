@@ -19,12 +19,14 @@ def best_dest(r):
             for loc in locs if 'activities' in locs[loc] and
                                 'navigation' in locs[loc]['activities'])
 
-MULTIPLIERS = {'navigation':1, 'papersoccer':1}
+# 1.5, 1.5 also good
+MULTIPLIERS = {'navigation':1.56, 'papersoccer':1.45}
 
 def simple_auton(shell, r, m):
     # hops around navigation activities to win
     agent = shell.active_agent
     while (agent.n_actions < 5000):
+        # wait for an activity to become desirable
         while True:
             m.update_seeds(r)
             ((dest, activity), seed) = m.get_best_dest()
@@ -33,12 +35,8 @@ def simple_auton(shell, r, m):
             r = agent.say('waiting')
 
         for cmd in m.get_path_from_to(agent.location, dest):
-            print cmd
             shell.try_command(cmd)
         r = shell.try_command('%s ai' % activity)
-        #for cmd in best_path_from_to[agent.location][best_dest(r)[-1]][-1]:
-        #    shell.try_command(cmd)
-        #r = shell.try_command('navigation ai')
 
 def main():
     parser = argparse.ArgumentParser(
@@ -56,7 +54,7 @@ def main():
     
     hostname = parser.parse_args().hostname
 
-    s = shell.Shell(name='auton', hostname=hostname)
+    s = shell.Shell(name='højskolers', hostname=hostname)
     agent = s.active_agent
     
     r = s.try_command('map enter')
