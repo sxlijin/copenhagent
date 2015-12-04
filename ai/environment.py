@@ -23,6 +23,8 @@ and     $cost       is the number of discredits that the best path costs
         $commands   is the list of <shellcommand>s that traverse the best path
 """
 
+from lib.logger import *
+
 class Map:
     
     BIKING_COST = 15    # cost of taking a bike
@@ -58,11 +60,23 @@ class Map:
         """
         Choose the location and activity with the best seed.
         """
-        for i in self.SEEDS.viewitems(): print i
-        ret = max(self.SEEDS.viewitems(), key = lambda x:x[1])
-        print
-        print "FINAL IS:",
-        print ret
+        def key_by_seed(item): 
+            ((loc, activity), seed) = item
+            val = seed
+            return val
+
+        def key_only_nav(item): 
+            ((loc, activity), seed) = item
+            val = seed if activity == 'navigation' else 0
+            return val
+
+        def key_only_ps(item):
+            ((loc, activity), seed) = item
+            val = seed if activity == 'papersoccer' else 0
+            return val
+
+        ret = max(self.SEEDS.viewitems(), key = key_by_seed)
+        log('next up', ret[0])
         return ret
 
 
