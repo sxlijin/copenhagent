@@ -58,7 +58,12 @@ class Map:
         """
         Choose the location and activity with the best seed.
         """
-        return max(self.SEEDS.viewitems(), key = lambda x:x[1])
+        for i in self.SEEDS.viewitems(): print i
+        ret = max(self.SEEDS.viewitems(), key = lambda x:x[1])
+        print
+        print "FINAL IS:",
+        print ret
+        return ret
 
 
     def update_seeds(self, r):

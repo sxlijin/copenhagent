@@ -19,18 +19,26 @@ def best_dest(r):
             for loc in locs if 'activities' in locs[loc] and
                                 'navigation' in locs[loc]['activities'])
 
-def simple_auton(shell, r):
+MULTIPLIERS = {'navigation':1, 'papersoccer':1}
+
+def simple_auton(shell, r, m):
     # hops around navigation activities to win
     agent = shell.active_agent
     while (agent.n_actions < 5000):
         while True:
-            b = best_dest(r)
-            if b[0] > agent.get_avg_creds(): break
-            time.sleep(.1)
+            m.update_seeds(r)
+            ((dest, activity), seed) = m.get_best_dest()
+            if seed * MULTIPLIERS[activity] > agent.get_avg_creds(): break
+            time.sleep(.03)
+            r = agent.say('waiting')
 
-        for cmd in best_path_from_to[agent.location][best_dest(r)[-1]][-1]:
+        for cmd in m.get_path_from_to(agent.location, dest):
+            print cmd
             shell.try_command(cmd)
-        r = shell.try_command('navigation ai')
+        r = shell.try_command('%s ai' % activity)
+        #for cmd in best_path_from_to[agent.location][best_dest(r)[-1]][-1]:
+        #    shell.try_command(cmd)
+        #r = shell.try_command('navigation ai')
 
 def main():
     parser = argparse.ArgumentParser(
@@ -53,9 +61,9 @@ def main():
     
     r = s.try_command('map enter')
     
-    global best_path_from_to
-    best_path_from_to = bestpaths.best_paths(r)
-    simple_auton(s, r)
+    #global best_path_from_to
+    #best_path_from_to = bestpaths.best_paths(r)
+    simple_auton(s, r, ai.environment.Map(r))
     
     sys.exit(0)
 
