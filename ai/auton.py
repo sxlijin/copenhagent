@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import sys, time, argparse
-import bestpaths
+import ai.environment
 try:
     import shell
 except ImportError:

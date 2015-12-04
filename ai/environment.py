@@ -23,65 +23,102 @@ and     $cost       is the number of discredits that the best path costs
         $commands   is the list of <shellcommand>s that traverse the best path
 """
 
-def best_paths(r):
-    """
-    Takes a <requests> containing a FullResponse from copenhagent and returns
-    a dict with the best ways to get from place to place.
+class Map:
+    
+    BIKING_COST = 15    # cost of taking a bike
 
-    Returns bests {} as bests['from']['to'] == (<cost>, <num actions>, <shell commands>)
-    """
-    metro = parse_metro(r.json()['state']['map']['metro'])
-    bests = {}
+    BESTS = {}
+    SEEDS = {}
 
-    for curr in metro.viewkeys():
-        bests[curr] = {}
-        for dest in metro.viewkeys():
-            bests[curr][dest] = best_method(metro, curr, dest)
+    def __init__(self, r):
+        """
+        Construct a Map object which maintains an internal state corresponding
+        to the map of copenhagent.
 
-    return bests
+        Takes a <FullResponse> and creates internal dict with following schema:
+        self.BESTS['from']['to'] == (<cost>, <num actions>, <shell commands>)
+        """
+        metro = self.parse_metro(r.json()['state']['map']['metro'])
+        self.BESTS = {}
+    
+        for curr in metro.viewkeys():
+            self.BESTS[curr] = {}
+            for dest in metro.viewkeys():
+                self.BESTS[curr][dest] = self.best_method(metro, curr, dest)
 
+        self.update_seeds(r)
 
-def best_method(metro, curr, dest):
-    """
-    Takes a $parsed_metro, $curr <loc>, $dest <loc>, and returns the best path.
-    Returns a tuple (<cost>, <num actions>, <shell commands>).
-    """
-    return min( metro_cost(metro, curr, dest, 'cw'),
-                metro_cost(metro, curr, dest, 'ccw'),
-                (15, 1, ['map bike locationId=%s' % dest]) )
+    def get_path_from_to(self, from_loc, to_loc):
+        """
+        Return the best path from $from_loc to $to_loc.
+        """
+        return self.BESTS[from_loc][to_loc][-1]
 
-def parse_metro(metro): 
-    """
-    Returns a parsed version of r.json()['state']['map']['metro'] as follows:
-
-    parsed_metro: {   locations:  {directions:    (cost, destination)}}
-    """
-    parsed = {}
-    for loc in metro:
-        parsed[loc] = {}
-        parsed[loc]['cw'] = (   min(metro[loc]['cw'].viewvalues()), 
-                                min(metro[loc]['cw'].viewkeys())    )
-        parsed[loc]['ccw'] = (  min(metro[loc]['ccw'].viewvalues()), 
-                                min(metro[loc]['ccw'].viewkeys())   )
-    return parsed
+    def get_best_dest(self):
+        """
+        Choose the location and activity with the best seed.
+        """
+        return max(self.SEEDS.viewitems(), key = lambda x:x[1])
 
 
-def metro_cost(metro, curr, dest, d):
-    """
-    Takes a $parsed_metro, $curr <loc>, $dest <loc>, and $d <direction>.
-    Determines the cost of taking the <metro> in $d from $curr to $loc.
-    Returns a tuple (<cost>, <num actions>, <shell commands>).
+    def update_seeds(self, r):
+        """
+        Update the internal table of locations, activities, and seeds with a
+        <FullResponse>.
+        """
+        locs = r.json()['state']['map']['locations']
+        for loc in locs:
+            for (ai, info) in locs[loc].get('activities', {}).viewitems():
+                self.SEEDS[(loc, ai)] = info['config']['seed']
+   
+    
+    def best_method(self, metro, curr, dest):
+        """
+        Takes a $parsed_metro, $curr <loc>, $dest <loc>, and returns the best path.
+        Returns a tuple (<cost>, <num actions>, <shell commands>).
 
-    Raises ValueError() if somehow goes around full circle or $cost passes 100.
-    """
-    walk = curr
-    cost = 0
-    count = 0
-    while walk != dest:
-        count += 1
-        cost += metro[walk][d][0]
-        walk = metro[walk][d][1]
-        if walk == curr: raise ValueError('smth went wrong: went full circle')
-        if cost > 100:   raise ValueError('smth went wrong: cost of %d' % cost)
-    return (cost, count, ['map metro direction=%s' % d for i in range(count)])
+        Should only ever be called during initialization.
+        """
+        return min( self.metro_cost(metro, curr, dest, 'cw'),
+                    self.metro_cost(metro, curr, dest, 'ccw'),
+                    (self.BIKING_COST, 1, ['map bike locationId=%s' % dest]) )
+    
+    def parse_metro(self, metro): 
+        """
+        Returns a parsed version of r.json()['state']['map']['metro'] as follows:
+    
+        parsed_metro: {   locations:  {directions:    (cost, destination)}}
 
+        Should only ever be called during initialization.
+        """
+        parsed = {}
+        for loc in metro:
+            parsed[loc] = {}
+            parsed[loc]['cw'] = (   min(metro[loc]['cw'].viewvalues()), 
+                                    min(metro[loc]['cw'].viewkeys())    )
+            parsed[loc]['ccw'] = (  min(metro[loc]['ccw'].viewvalues()), 
+                                    min(metro[loc]['ccw'].viewkeys())   )
+        return parsed
+    
+    
+    def metro_cost(self, metro, curr, dest, d):
+        """
+        Takes a $parsed_metro, $curr <loc>, $dest <loc>, and $d <direction>.
+        Determines the cost of taking the <metro> in $d from $curr to $loc.
+        Returns a tuple (<cost>, <num actions>, <shell commands>).
+    
+        Raises ValueError() if somehow goes around full circle or $cost passes 100.
+
+        Should only ever be called during initialization.
+        """
+        walk = curr
+        cost = 0
+        count = 0
+        while walk != dest:
+            count += 1
+            cost += metro[walk][d][0]
+            walk = metro[walk][d][1]
+            # raise errors if something goes wrong with logic
+            if walk == curr: raise ValueError('smth went wrong: went full circle')
+            if cost > 100:   raise ValueError('smth went wrong: cost of %d' % cost)
+        return (cost, count, ['map metro direction=%s' % d for _ in range(count)])
