@@ -160,7 +160,7 @@ class Instance:
         self.n_moves += 1
         dest_vertex = self.get_current().get_next_via(direction)
         log('updating',
-            '%s -> %s via %2s' % (self.get_current(), dest_vertex, direction)
+            '%2s from %6s to %6s' % (direction, self.get_current(), dest_vertex)
             )
         self.graph.edge_table[self.curr_vertex][dest_vertex] = 'visited'
         self.graph.edge_table[dest_vertex][self.curr_vertex] = 'visited'
@@ -292,58 +292,37 @@ class SearchNodeWrap:
     def check_visited(self, vertex=None):
         return self.search_node_atom.check_visited(vertex)
 
+    def get_next(self, move_seq):
+        """
+        Return the successor SearchNodeWrap corresponding to $move_seq.
+        """
+        return self.nexts[tuple(move_seq)]
+
     def get_nexts(self):
-        # v inefficient: constantly loops thru successors
-        if self.nexts != None: return self.nexts    # cache $nexts
-
-        # store successors as <move_sequence>:<SearchNodeAtomAtom> pairs
-        nexts = {   (d,):atom 
-                    for (d, atom)
-                    in self.search_node_atom.get_nexts().viewitems() }
-        while True:
-            break_flag = True
-            for (d_seq, atom) in nexts.items():
-                if atom.get_current().move_again:
-                    for (next_d, next_atom) in atom.get_nexts().viewitems():
-                        nexts[d_seq + (next_d,)] = next_atom
-                    nexts.pop(d_seq)
-                    break_flag = False
-            if break_flag: break
-
-            nexts = tuple(  SearchNodeWrap(nx, self, d_seq)
-                            for (d_seq, nx) in nexts.viewitems()   )
-
-        self.nexts = nexts
-        return self.nexts
-
-    def get_nexts2(self):
         """
         Returns a tuple of successor SearchNodeWraps.
         
         Does so via iterative graph search with a queue as the frontier.
         """
-        if self.nexts != None:   return self.nexts
+        if self.nexts != None:   return tuple(self.nexts.viewvalues())
 
-        nexts = list()
+        nexts = dict()
         repl_queue = structs.Queue()
         # queue up tuples (successor Atom, plays to get to $successor)
 
         def parse_nexts(curr_atom, prev_plays=tuple()):
             for atom in curr_atom.get_nexts():
+                #atom.show_nexts()
+                play_seq = prev_plays + (atom.prev_play,)
                 if curr_atom.check_visited(atom):
 #                    print 'move again at %s <- %s <- %s' % (
 #                                atom.get_current(),
 #                                curr_atom.get_current(), 
 #                                prev_plays
 #                                )
-                    repl_queue.add((atom, prev_plays + (atom.prev_play,)))
+                    repl_queue.add((atom, play_seq))
                 else:
-                    nexts.append(
-                        SearchNodeWrap( atom,
-                                        self,
-                                        prev_plays + (atom.prev_play,)
-                                        )
-                                )
+                    nexts[play_seq] = SearchNodeWrap(atom, self, play_seq)
 
         parse_nexts(self.search_node_atom)
 
@@ -351,7 +330,7 @@ class SearchNodeWrap:
             parse_nexts(*repl_queue.rm())
 
         self.nexts = nexts
-        return self.nexts
+        return self.get_nexts()
 
 
     """
@@ -375,7 +354,7 @@ class SearchNodeWrap:
         return
 
     """
-    def get_nexts(self, ancestor=None):
+    def get_nexts2(self, ancestor=None):
         """UNTESTED"""
 
         if self.nexts != None:  return self.nexts
@@ -419,8 +398,11 @@ class Agent:
         #self.state = State(instance) if state == None else state
         self.debug = debug
 
-        self.curr_node = None
+        self.curr_wrap = None
+
+        # record move history since last play
         self.my_moves = list()
+        self.cpu_moves = list()
     
     def __str__(self):
         return str(self.instance.get_current())
@@ -428,34 +410,81 @@ class Agent:
     def cmd_ps_move(self, move):
         """Command agent to make a move in papersoccer."""
         # if passed a $direction
-        if type(move) in (str, unicode):
-            r = self.try_command(
-                'papersoccer play direction=%s' % move)
-            if r.status_code == 200 and r.json()['action']['applicable']:
-                self.my_moves.append(move)
-                cpu_plays = r.json()['action']['percepts']
+        r = self.try_command('papersoccer play direction=%s' % move)
+        if r.status_code == 200 and r.json()['action']['applicable']:
+            # reset move history
+            if len(self.cpu_moves) > 0: 
+                (self.my_moves, self.cpu_moves) = ([], [])
 
-                for d in [move] + cpu_plays:
-                    self.instance.update_with_dir(d)
+            # record agent's move
+            self.my_moves.append(move)
+            self.cpu_moves = r.json()['action']['percepts']
 
-                if len(cpu_plays) != 0:
-                    log('ps_instance updated',
-                        '(me) %s -> (cpu) %s' % (  ' -> '.join(self.my_moves), 
-                                                    ' -> '.join(cpu_plays)      )
-                        )
-                    self.my_moves = list()
-            return r
+            # update internal state
+            for d in [move] + self.cpu_moves:
+                self.instance.update_with_dir(d)
+
+            # log sequence of consecutive moves
+            if len(self.cpu_moves) > 0:
+                log('ps_instance updated',
+                    '(me) %s -> (cpu) %s' % (  ' -> '.join(self.my_moves), 
+                                               ' -> '.join(self.cpu_moves)      )
+                    )
+        return r
 
     def cmd_ps_leave(self):
         """Command agent to leave papersoccer."""
         return self.try_command('papersoccer leave')
+
+    def curr_vertex(self):
+        """Return the <Vertex> corresp. to the agent's current location."""
+        return self.instance.get_current()
     
     def curr_search_wrap(self):
         """Return the search node corresponding to the current state."""
-        # if walking down a search tree, search it for new current state
-#        if self.curr_node != None:
-            
+        # generate search nodes if
+        #   - no search nodes have yet been generated
+        #   - oops
+        if self.curr_wrap == None or self.curr_vertex().is_terminal:
+            self.curr_wrap = self.generate_curr_search_wrap()
 
+        # if current search node reflects current position, return it
+        elif self.curr_wrap.get_current() == self.curr_vertex():
+            pass
+
+        # otherwise, current position must be a grandchild of current node
+        else:
+            try:
+                print
+                print 'curr_search_wrap() trying to walk down the tree:'
+                print '\t', self.curr_wrap.get_current(),
+    
+                # walk down by my moves
+                self.curr_wrap = self.curr_wrap.get_next(self.my_moves)
+                print 'via %s to %s' % (self.curr_wrap.prev_plays, self.curr_wrap.get_current()),
+    
+                # walk down by cpu moves
+                self.curr_wrap = self.curr_wrap.get_next(self.cpu_moves)
+                print 'via %s to %s' % (self.curr_wrap.prev_plays, self.curr_wrap.get_current())
+    
+                # complain if something went wrong
+                if self.curr_wrap.get_current() != self.curr_vertex():
+                    for _ in range(100): print "PROBLEM"
+            except TypeError:
+                # TypeError: 'NoneType' object has no attribute '__getitem__'
+                # is returned if depth 2 subtree of current search node has not
+                # been generated, since the subtree is initialized as None
+                print '\n\tERROR: walking down the tree failed'
+                self.curr_wrap = None
+                return self.curr_search_wrap()
+
+        # force generation of depth 2 tree
+        #for nx in self.curr_wrap.get_nexts(): nx.get_nexts()
+        return self.curr_wrap
+        
+
+    def generate_curr_search_wrap(self):
+        """Create a new search node wrap corresponding to the current state."""
         return SearchNodeWrap(  SearchNodeAtom( self.instance.get_current(),
                                                 self.instance
                                                 )
