@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import sys, time, argparse
-import ai.environment
+import ai.geography
 try:
     import shell
 except ImportError:
@@ -10,17 +10,10 @@ except ImportError:
         'user@machine:.../copenhagent$ python -m ai.auton'
         ))
 
-best_path_from_to = None
-
-def best_dest(r):
-    locs = r.json()['state']['map']['locations']
-    return max(
-            (locs[loc]['activities']['navigation']['config']['seed'], loc) 
-            for loc in locs if 'activities' in locs[loc] and
-                                'navigation' in locs[loc]['activities'])
 
 # 1.5, 1.5 also good
 MULTIPLIERS = {'navigation':1.56, 'papersoccer':1.45}
+
 
 def simple_auton(shell, r, m):
     # hops around navigation activities to win
@@ -37,6 +30,7 @@ def simple_auton(shell, r, m):
         for cmd in m.get_path_from_to(agent.location, dest):
             shell.try_command(cmd)
         r = shell.try_command('%s ai' % activity)
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -59,9 +53,7 @@ def main():
     
     r = s.try_command('map enter')
     
-    #global best_path_from_to
-    #best_path_from_to = bestpaths.best_paths(r)
-    simple_auton(s, r, ai.environment.Map(r))
+    simple_auton(s, r, ai.geography.Map(r))
     
     sys.exit(0)
 

@@ -8,10 +8,11 @@ import lib.papersoccer, ai.papersoccer
 from lib.logger import *
 
 
-
 def navigation_ai(shell):
-    debug=False
-    debug=True
+    """
+    The methods to be executed when the "navigation ai" command is run.
+    """
+    debug = True
     
     def nav_setup():
         nav_inst = lib.navigation.Instance(shell, debug=debug)
@@ -29,9 +30,11 @@ def navigation_ai(shell):
     log_runtime_of(nav_solve) 
     return nav_agent.cmd_nav_leave()
 
+
 def papersoccer_ai(shell):
-    debug=False
-    debug=True
+    """
+    The methods to be executed when the "papersoccer ai" command is run.
+    """
 
     def ps_setup():
         ps_inst = lib.papersoccer.Instance(shell)
@@ -45,11 +48,14 @@ def papersoccer_ai(shell):
     log_runtime_of(ps_solve)
     return ps_agent.cmd_ps_leave()
 
+
 class CustomProgramError(Exception):
+    """Custom error to be raised when something goes wrong."""
     def __init__(self, value):
         self.value = value
     def __str__(self):
         return repr(self.value)
+
 
 class Shell:
     """Open a shell to control agents in the copenhagent environment."""

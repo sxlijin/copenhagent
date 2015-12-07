@@ -11,20 +11,6 @@ dirs = lib.papersoccer.dirs
 
 ###############################################################################
 #
-#   Ideas to try out:
-#       - generate SearchNodeWraps in a tree/dict that gets saved, and as the
-#         game progresses, iterate down the tree/dict, updating the history 
-#         appropriately
-#           > means you save the cost of generating new nodes
-#           > all you have to do is expand the tree a bit more
-#           > delete nodes corresponding to moves which were not made
-#           > probably something to be handled in lib.papersoccer
-#
-###############################################################################
-
-
-###############################################################################
-#
 #  Heuristic functions that assess the desirability of a given game board.
 
 def choose_from_according_to(wraps, heuristic, mode=1):
@@ -58,7 +44,7 @@ def heuristic_crude(wrap):
 
 
 def hill_climb(ps_agent):
-    """Navigation search algorithm: hill climbing."""
+    """Papersoccer search algorithm: hill climbing."""
     r = None
     ps = ps_agent.instance
 
@@ -86,10 +72,18 @@ def hill_climb(ps_agent):
 #  Game-solving algorithms (minimax and alpha-beta) and their helpers
 
 def is_terminal(node):
+    """Tests if a search node is terminal."""
     return node.get_current().is_terminal or len(node.get_nexts()) == 0
 
 
 def utility(node, is_my_turn):
+    """
+    Returns the assessed utility of a terminal state.
+    
+    Measures utility according to total moves made: not fully implemented.
+
+    Actual utility measure should be the would-be average DIScredits.
+    """
     multiplier = 1 if ( (node.get_current() == ps.goal_vertex) or
                         (node.get_nexts() == tuple() and not is_my_turn) ) else -1
     utility = node.n_moves*multiplier 
@@ -98,6 +92,9 @@ def utility(node, is_my_turn):
 
 
 def minimax(node, is_my_turn):
+    """
+    Naive minimax algorithm.
+    """
     if is_terminal(node):   return utility(node, is_my_turn)
     if is_my_turn:
         return max( minimax(next_node, False)
@@ -108,6 +105,9 @@ def minimax(node, is_my_turn):
 
 
 def alphabeta(node, is_my_turn, alpha, beta):
+    """
+    Naive minimax algorithm with alpha-beta pruning.
+    """
     if is_terminal(node):   return utility(node, is_my_turn)
     if is_my_turn:
         v = float('-inf')
@@ -126,7 +126,9 @@ def alphabeta(node, is_my_turn, alpha, beta):
 
 
 def dlminimax(node, is_my_turn, depth):
-    print '.',
+    """
+    Depth-limited naive minimax algorithm.
+    """
     #print node.get_current(), is_my_turn, depth
     #print '\t', [str(n.get_current()) for n in node.get_nexts()]
     #print
@@ -151,6 +153,9 @@ def dlalphabeta(node, is_my_turn,
                 beta  = POSITIVE_INFINITY,
                 depth = 0):
     print '.',
+    """
+    Depth-limited minimax with alpha-beta pruning and move-ordering.
+    """
 
     if is_terminal(node) or depth == 3:
         return (node.get_current().get_column(), node)
@@ -178,6 +183,7 @@ def dlalphabeta(node, is_my_turn,
 
 
 def play_game(ps_agent):
+    """Makes moves according to dlalphabeta()."""
     move_seq = tuple()
     while True:
         for move in move_seq:   ps_agent.cmd_ps_move(move)
@@ -201,6 +207,10 @@ def play_game(ps_agent):
 #  Implemented for standalone execution.
 
 def setup():
+    """
+    Create a shell to control an agent with specified token and return the
+    corresponding <Agent>.
+    """
     import sys
     s = shell.Shell(token= sys.argv[1])
     s.try_command('papersoccer leave')

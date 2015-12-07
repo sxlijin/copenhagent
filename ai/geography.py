@@ -12,7 +12,7 @@ TODO:   Implement the lookup table as a hardcoded global hashtable, and make
 
 Schema is as follows:
 
-    best_paths($r)[$from][$to] -> tuple($cost, $n_actions, $commands)
+    Map($r).BESTS[$from][$to] -> tuple($cost, $n_actions, $commands)
 
 where   $r          is the <requests> containing a FullResponse
         $from       is the <location> at the head (start) of the desired path
