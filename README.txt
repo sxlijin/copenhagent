@@ -36,42 +36,42 @@ copenhagent/                Top-level package
     copenhagent.py          Top-level user interactive interface.
     shell.py                Creates a shell to allow users to control agents.
 
-    command.txt             Plaintext hashtable of <shellcommand>:<apicommand>
-    megan.py                Work megan did pre-refactor
-    README.txt              
-    TODO.txt
+    README.txt              This file.
     
     ai/                     Subpackage for AI routines.
         __init__.py         
         auton.py            Autonomous routine for an agent in <copenhagent>.
-        bestpaths.py        Identifies best paths between two locations.
+        geography.py        Store state of a <copenhagent> instance and 
+                                identify best options for moving around.
         navigation.py       Solves a <navigation> instance.
-    *** papersoccer.py      Solves a <papersoccer> instance.
+        papersoccer.py      Solves a <papersoccer> instance.
     
     lib/                    Subpackage for program resources.
         __init__.py 
+        benchmark.py        Generate statistics about <copenhagent>.
         logger.py           Log information to STDOUT and parse logs.
         navigation.py       Store state of a <navigation> instance.
         papersoccer.py      Store state of a <papersoccer> instance.
         structs.py          Various data structures used in the program.
 
-
  * <USER>
  |
  |   +--[ copenhagent/ ] ----+              +--[ ai/ ]------------------+  
  |   |                       |              |                           |
- +------> * copenhagent.py   |      +----------> * auton.py             |
- |   |    |                  |      |       |                           | 
- |   |    v                  |      |     -----> * bestpaths.py         |
- +------> * shell.py         |      |    /  |                           | 
-     |    |                  |      +---+------> * navigation.py * <--------+
-     |    v                  |     /     \  |                           |   |
-     |    * agent.py * <----------+       -----> * papersoccer.py * <----------+
-     |                       |     \        |                           |   |  |
-     +-----------------------+      \       +---------------------------+   |  |
-                                     \                                      |  |
-                                      \                                     |  |
-                                       \    +--[ lib/ ]-----------------+   |  |
+ +------> * copenhagent.py   |    +------------> * auton.py             |
+ |   |    |                  |    |         |                           | 
+ |   |    v                  |    |       -----> * geography.py         |
+ +------> * shell.py         |    |      /  |                           | 
+     |    |                  |    +-----+------> * navigation.py * <--------+
+     |    v                  |   /       \  |                           |   |
+     |    * agent.py * <--------+         -----> * papersoccer.py * <----------+
+     |                       |   \          |                           |   |  |
+     +-----------------------+    \         +---------------------------+   |  |
+                                   \                                        |  |
+                                    \                                       |  |
+                                     \      +--[ lib/ ]-----------------+   |  |
+                                      \     |                           |   |  |
+                                       \    |    * benchmark.py         |   |  |
                                         \   |                           |   |  |
                                          +-----> * navigation.py * <--------+  |
                                          |  |                           |      |
@@ -135,3 +135,4 @@ to add commands to the disai> interactive shell
 	
 	to execute commands from within the program, call them by try_command()
 	if new global state variables are created, only modify them with mutator methods
+
