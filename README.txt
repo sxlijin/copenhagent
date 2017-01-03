@@ -9,7 +9,31 @@ adversarial search algorithms (minimax, alpha-beta), and so on.
 
 ################################################################################
 
-$ python copenhagent.py --help
+Note to future me (and anyone coming acros this)
+
+This project was never actually finished. The final project of the course was
+to implement an autonomous mode for the agent, where Martin would run the server
+in competition mode for 5 minutes (something like that?) and we would connect
+our agents to it, whereupon they would compete autonomously to see which one
+could finish with the highest score. I think we won? I'm pretty sure we did.
+
+In any case, a year later, I've come back and added instructions here to run
+the darn thing:
+
+$ git clone <blablabla>
+$ git submodule update --init --recursive
+$ cd disai-distribution/server/ && npm install && node app.js
+
+In a separate window, once the node app starts up (it won't say when, but it'll
+be soon after the npm install finishes):
+
+$ python2 -m ai.auton -hostname=localhost
+
+To watch the agent go, open your web browser to localhost:3000/viewer/
+
+################################################################################
+
+$ python2 copenhagent.py --help
 usage: copenhagent.py [-h] [--new <name>] [--agent <agentToken>]
                       [--command <command>]
 
@@ -89,10 +113,10 @@ copenhagent/                Top-level package
 To spawn an interactive shell to control an agent from the command line:
 
     ### create and control a new agent named $arg
-    $ python copenhagent.py --new arg
+    $ python2 copenhagent.py --new arg
 
     ### control an existing agent with agentToken $arg
-    $ python copenhagent.py --agent arg
+    $ python2 copenhagent.py --agent arg
 
 To control the agent from within the spawned shell, use API commands, replacing
 /'s and ?'s with spaces. (Do not add spaces around ='s, parser will not handle
