@@ -12,7 +12,7 @@ def navigation_ai(shell):
     """
     The methods to be executed when the "navigation ai" command is run.
     """
-    debug = True
+    debug = False
     
     def nav_setup():
         nav_inst = lib.navigation.Instance(shell, debug=debug)
