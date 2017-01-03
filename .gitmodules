@@ -1,0 +1,3 @@
+[submodule "disai-distribution"]
+	path = disai-distribution
+	url = https://github.com/sxlijin/disai-distribution
